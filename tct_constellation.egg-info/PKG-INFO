@@ -1,0 +1,10 @@
+Metadata-Version: 2.4
+Name: tct-constellation
+Version: 0.1.0
+Summary: Scans and analysis for the TCT setup, driving Constellation satellites
+Requires-Python: >=3.11
+Requires-Dist: ConstellationDAQ[cli,hdf5]
+Requires-Dist: numpy
+Requires-Dist: h5py
+Requires-Dist: scipy
+Requires-Dist: matplotlib

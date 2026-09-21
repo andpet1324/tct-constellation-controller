@@ -1,0 +1,30 @@
+# SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+# SPDX-License-Identifier: CC0-1.0
+
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "tct-constellation"
+version = "0.1.0"
+description = "Scans and analysis for the TCT setup, driving Constellation satellites"
+requires-python = ">=3.11"
+dependencies = [
+    "ConstellationDAQ[cli,hdf5]",
+    "numpy",
+    "h5py",
+    "scipy",
+    "matplotlib",
+]
+
+[project.scripts]
+tct-motor-scan = "tct.scans.motor_scan:main"
+tct-bias-scan = "tct.scans.bias_scan:main"
+tct-focus-scan = "tct.scans.focus_scan:main"
+tct-calibrate = "tct.scans.calibrate:main"
+tct-manual = "tct.scans.manual_translation:main"
+tct-waveforms = "tct.waveform_monitor:main"
+
+[tool.setuptools.packages.find]
+include = ["tct*"]

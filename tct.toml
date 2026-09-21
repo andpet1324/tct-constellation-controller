@@ -1,0 +1,53 @@
+# SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+# SPDX-License-Identifier: CC0-1.0
+#
+# Constellation configuration of the TCT setup. Values marked TODO are
+# placeholders which have to be set for the actual measurement.
+
+[_default]
+_autonomy.role = "DYNAMIC"
+
+# --- Stage ---------------------------------------------------------------------
+[Standa.One]
+model = "8MT30_50"
+calibrate_on_launch = false
+
+[Standa.One.axis_serials]
+x = 31015
+y = 31016
+z = 30954
+
+# Has to be present so that the position can be changed with reconfigure,
+# the scan scripts set the actual positions
+[Standa.One.position]
+x = 0.0
+y = 0.0
+z = 0.0
+
+# --- Bias voltage ----------------------------------------------------------------
+[Keithley.HV]
+device = "2410"
+port = "/dev/ttyUSB1"
+terminal = "rear"
+voltage = -50.0        # TODO operating point
+voltage_step = 5.0
+settle_time = 1.0
+ovp = 200.0            # TODO has to be above |voltage|
+compliance = 1e-5      # TODO current limit in A
+
+# --- Oscilloscope ----------------------------------------------------------------
+# LeCrunch on TCP port 1861 requires "TCPIP (VICP)" under Utilities -> Remote
+[LeCroySatellite.Scope]
+ip_address = "169.254.40.151"
+port = 1861
+timeout = 5.0
+nsequence = 1
+
+# --- Data writer -----------------------------------------------------------------
+[H5DataWriter.Writer]
+output_directory = "/home/andreas/Work/DESY/tct/data"   # TODO
+flush_interval = 10.0
+
+# Only the oscilloscope transmits data, the other satellites publish metrics
+[H5DataWriter.Writer._data]
+receive_from = ["LeCroySatellite.Scope"]
