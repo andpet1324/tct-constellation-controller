@@ -3,5 +3,5 @@ tct-bias-scan = tct.scans.bias_scan:main
 tct-calibrate = tct.scans.calibrate:main
 tct-focus-scan = tct.scans.focus_scan:main
 tct-manual = tct.scans.manual_translation:main
+tct-monitor = tct.waveform_monitor:main
 tct-motor-scan = tct.scans.motor_scan:main
-tct-waveforms = tct.waveform_monitor:main

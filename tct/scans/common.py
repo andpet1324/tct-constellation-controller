@@ -8,6 +8,7 @@ Helpers shared by the scan scripts
 import argparse
 import json
 import pathlib
+import time
 from datetime import datetime
 from typing import Any
 
@@ -20,10 +21,15 @@ from ..controller import TCTController
 def format_value(value: float) -> str:
     """Format a number for use in a run identifier.
 
-    Run identifiers may only contain word characters and dashes, so the decimal
-    point is replaced: 10.5 -> "10p500".
+    Precision down to nano meters. 
+    The minimal step-size in x,y is 0.05 um (+- 0.05 um), and 0.1 um (+- 0.03 um) in z.
     """
-    return f"{value:.3f}".replace(".", "p").replace("-", "m")
+    return f"{value:.9f}".replace(".", "p").replace("-", "m")
+
+
+def run_identifier(position: dict[str, float]) -> str:
+    """Run identifier encoding the position, e.g. x10p000000000_y20p000000000_z0p000000000"""
+    return "_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items())
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
@@ -31,6 +37,7 @@ def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     parser.add_argument("-c", "--config", type=pathlib.Path, default="tct.toml", help="Constellation configuration file")
     parser.add_argument("-g", "--group", default="tct", help="Constellation group name")
     parser.add_argument("-tr", "--triggers", type=int, default=1000, help="Triggers to collect per point")
+    parser.add_argument("--data", type=pathlib.Path, default=None, help="Directory for csv data")
     parser.add_argument("--manifest", type=pathlib.Path, help="Where to write the scan manifest (JSON)")
     parser.add_argument("--no-launch", action="store_true", help="Constellation is already in ORBIT, do not initialize")
 
@@ -44,6 +51,13 @@ def bring_up(ctrl: TCTController, config_path: pathlib.Path, satellites: list[st
     ctrl.await_state(SatelliteState.INIT)
     ctrl.constellation.launch()
     ctrl.await_state(SatelliteState.ORBIT)
+
+
+def data_directory(config_path: pathlib.Path, writer: str = "H5DataWriter.Writer") -> pathlib.Path:
+    """The output_directory the H5DataWriter.
+    """
+    cfg = load_config(config_path)
+    return cfg.get_satellite_configuration(writer).get_path("output_directory")
 
 
 def reconfigure(ctrl: TCTController, satellite: str, partial_config: dict[str, Any]) -> None:

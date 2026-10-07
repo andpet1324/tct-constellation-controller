@@ -72,3 +72,10 @@ class TCTController(ScriptableController, MonitoringListener):
         collected = self.num_triggers
         self.log.status(f"Run {run_identifier} finished with {collected} triggers")
         return collected
+
+    def reentry(self) -> None:
+        # land satellites
+        self.constellation.land()
+        self.await_state(SatelliteState.INIT)
+        
+        super().reentry()

@@ -5,6 +5,7 @@ tct/waveform_monitor.py
 tct/analysis/__init__.py
 tct/analysis/focus.py
 tct/analysis/h5.py
+tct/analysis/waveform.py
 tct/scans/__init__.py
 tct/scans/bias_scan.py
 tct/scans/calibrate.py

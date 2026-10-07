@@ -7,11 +7,11 @@ Position scan: one run per stage position, replacing MotorScanWorker
 
 import argparse
 from typing import Any
-
-import numpy
+import pathlib
 
 from ..controller import TCTController
-from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest
+from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory
+from ..analysis.h5 import Run
 
 STAGE = "Standa.Stage"
 HV = "Keithley.HV"
@@ -21,29 +21,34 @@ SATELLITES = [STAGE, HV, SCOPE, WRITER]
 
 
 def run_identifier(position: dict[str, float]) -> str:
-    """Run identifier encoding the position, e.g. x10p000_y20p000_z0p000"""
     return "_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items())
 
 
 def manual_translation(
     ctrl: TCTController,
     triggers: int,
-    results: dict{str, int}
-) -> dict[str, Any]:
+    results: list[dict[str, Any]] | None = None,
+    data_dir: pathlib.Path | None = None,
+    csv_dir: pathlib.Path | None = None,
+) -> list[dict[str, Any]]:
+    """Move the stage to positions entered by the user and take a run at each.
     """
-      Using user input, translate the stages along the given axis.
-    """
-    position = {"x" : 0.0, "y" : 0.0, "z" : 0.0}
+    if results is None:
+        results = []
+    position = {"x": 0.0, "y": 0.0, "z": 0.0}
 
     # Get current positions
-    for index, position in enumerate(positions):
-        position_call = "position_" + position.key
-        current_position = ctrl.command(position_call, None, Stage.type, Stage.name)
-        position[position] = current_position
+    sat_type, sat_name = STAGE.split(".", 1)
+    for axis in position:
+        response = ctrl.command(f"position_{axis}", None, sat_type, sat_name)
+        if not response.success or response.payload is None:
+            raise RuntimeError(f"Could not read {axis} position of {STAGE}: {response}")
+        position[axis] = float(response.payload)
+    ctrl.log.status(f"Stage currently at {position}")
 
     # Wait for user input and then move the stages
     while True:
-        #Ask for new absolute coordinates in format x,y,z
+        # Ask for new absolute coordinates in format x,y,z
         input_position = input("New position as x,y,z in mm (empty to stop): ").strip()
 
         if not input_position:
@@ -64,14 +69,22 @@ def manual_translation(
         run_id = run_identifier(position)
         collected = ctrl.take_run(run_id, triggers)
 
-        results.append({"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, HV)})
+        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, HV)}
+        results.append(point)
+
+        if csv_dir is not None:
+            try:
+                with Run.from_run_id(run_id, data_dir) as run:
+                    ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
+            except Exception as err:
+                ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
 
     ctrl.log.status(f"Ended translation at position: {position}")
     return results
 
 
 def main(args: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Position scan, one run per point")
+    parser = argparse.ArgumentParser(description="Manual translation, one run per position entered by the user")
     add_common_arguments(parser)
     opts = parser.parse_args(args)
 
@@ -79,12 +92,13 @@ def main(args: list[str] | None = None) -> None:
     if not opts.no_launch:
         bring_up(ctrl, opts.config, SATELLITES)
 
+    data_dir = data_directory(opts.config, WRITER) if opts.data else None
+
     settings = {"triggers": opts.triggers}
-    results: dict[str, Any] = {}
+    results: list[dict[str, Any]] = []
     try:
-        manual_translation(ctrl, opts.triggers, results)
+        manual_translation(ctrl, opts.triggers, results, data_dir, opts.data)
     finally:
-        # Also on interruption: keep what was taken so far
         path = save_manifest(opts.manifest, "manual_translation", settings, results)
         ctrl.log.status(f"Manifest of {len(results)} points written to {path}")
 
