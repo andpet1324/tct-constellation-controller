@@ -19,24 +19,22 @@ from constellation.core.protocol.cscp1 import SatelliteState
 class TCTController(ScriptableController, MonitoringListener):
     """Controller which ends a run once enough triggers have been collected.
 
-    The number of triggers is taken from the NUM_TRIGGERS metric of the
-    oscilloscope satellite, so that every scan point holds the same number of
-    waveforms instead of the same amount of time. Points where the trigger rate
-    is low then take longer rather than ending up with fewer events.
+    The number of triggers is taken from the SAMPLES_SIZE metric (TO BE DEFINED!) of the
+    Alibava satellite, which is the requested sample size which corresponds to the number of triggers.
     """
 
-    def __init__(self, *args: Any, scope: str = "LeCroySatellite.Scope", **kwargs: Any) -> None:
+    def __init__(self, *args: Any, daq: str = "Alibava.DAQ", **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self._scope = scope
+        self._daq = daq
         self._triggers_lock = threading.Lock()
         self._num_triggers = 0
 
-        # Subscribe to the trigger counter of the oscilloscope
-        self.set_topics(["STAT/NUM_TRIGGERS"])
+        # Subscribe to the trigger counter of the daq
+        self.set_topics(["STAT/SAMPLE_SIZE"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if metric.name == "NUM_TRIGGERS" and sender == self._scope:
+        if metric.name == "SAMPLE_SIZE" and sender == self._daq:
             with self._triggers_lock:
                 self._num_triggers = int(value)
 

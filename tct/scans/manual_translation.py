@@ -15,9 +15,9 @@ from ..analysis.h5 import Run
 
 STAGE = "Standa.Stage"
 HV = "Keithley.HV"
-SCOPE = "LeCroySatellite.Scope"
+DAQ = "Alibava.DAQ"
 WRITER = "H5DataWriter.Writer"
-SATELLITES = [STAGE, HV, SCOPE, WRITER]
+SATELLITES = [STAGE, HV, DAQ, WRITER]
 
 
 def run_identifier(position: dict[str, float]) -> str:
