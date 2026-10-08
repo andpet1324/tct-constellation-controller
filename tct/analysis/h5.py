@@ -15,54 +15,50 @@ import numpy
 
 
 def decode_record(payload: numpy.ndarray, channels: list[int], num_sequences: int) -> dict[int, numpy.ndarray]:
-    """Split one LeCroy data record into the waveforms of every channel.
-
-            #[trigger times (num_sequences)] [number of samples]
-            #then per channel: [trigger offsets (num_sequences)] [samples (num_sequences * number of samples)]
-        [number of samples]
-        then per channel: [samples (num_sequences * number of samples)]
-
-    Returns the samples per channel in volts, shaped (num_sequences, number of samples).
+    """Split one Alibava data record into ...
     """
+
+    print(payload)
+    return payload
     #index = num_sequences  # skip the trigger times
-    num_samples = int(payload[0])
-    index = 1
+    # num_samples = int(payload[0])
+    # index = 1
 
-    #expected = num_sequences + 1 + len(channels) * (num_sequences + num_sequences * num_samples) 
-    expected = 1 + num_sequences * num_samples * len(channels) 
-    if payload.size != expected:
-        raise ValueError(
-            f"Record has {payload.size} words, expected {expected} for {len(channels)} channel(s), "
-            f"{num_sequences} sequence(s) and {num_samples} samples"
-        )
+    # #expected = num_sequences + 1 + len(channels) * (num_sequences + num_sequences * num_samples) 
+    # expected = 1 + num_sequences * num_samples * len(channels) 
+    # if payload.size != expected:
+    #     raise ValueError(
+    #         f"Record has {payload.size} words, expected {expected} for {len(channels)} channel(s), "
+    #         f"{num_sequences} sequence(s) and {num_samples} samples"
+    #     )
 
-    waveforms = {}
-    for channel in channels:
-        #index += num_sequences  # skip the trigger offsets
-        samples = payload[index : index + num_sequences * num_samples]
-        waveforms[channel] = samples.reshape(num_sequences, num_samples)
-        index += num_sequences * num_samples
-    return waveforms
+    # waveforms = {}
+    # for channel in channels:
+    #     #index += num_sequences  # skip the trigger offsets
+    #     samples = payload[index : index + num_sequences * num_samples]
+    #     waveforms[channel] = samples.reshape(num_sequences, num_samples)
+    #     index += num_sequences * num_samples
+    # return waveforms
 
 class Run:
-    """One run in an HDF5 file, giving access to the oscilloscope waveforms.
+    """One run in an HDF5 file, giving access to the oscillodaq waveforms.
     """
 
     SAMPLE_FORMAT = "%.6g" # Ignor
 
-    def __init__(self, path: pathlib.Path | str, scope: str = "LeCroySatellite.Scope") -> None:
+    def __init__(self, path: pathlib.Path | str, daq: str = "Alibava.DAQ") -> None:
         self.path = pathlib.Path(path)
         self._file = h5py.File(self.path, "r")
-        self._scope = scope
-        if scope not in self._file:
+        self._daq = daq
+        if daq not in self._file:
             senders = list(self._file.keys())
             self._file.close()
-            raise KeyError(f"No data of {scope} in {self.path}, senders: {senders}")
+            raise KeyError(f"No data of {daq} in {self.path}, senders: {senders}")
 
     @classmethod
-    def from_run_id(cls, run_id: str, data_dir: pathlib.Path | str, scope: str = "LeCroySatellite.Scope") -> "Run":
+    def from_run_id(cls, run_id: str, data_dir: pathlib.Path | str, daq: str = "Alibava.DAQ") -> "Run":
         """Open the file the H5DataWriter creates for a run identifier"""
-        return cls(pathlib.Path(data_dir) / f"data_{run_id}.h5", scope)
+        return cls(pathlib.Path(data_dir) / f"data_{run_id}.h5", daq)
 
     def __enter__(self) -> "Run":
         return self
@@ -75,26 +71,41 @@ class Run:
 
     @property
     def bor(self) -> dict[str, Any]:
-        """User tags of the begin-of-run message of the oscilloscope"""
-        return dict(self._file[self._scope]["BOR"]["user_tags"].attrs)
+        """User tags of the begin-of-run message of the oscillodaq"""
+        return dict(self._file[self._daq]["BOR"]["user_tags"].attrs)
 
     @property
     def eor(self) -> dict[str, Any]:
         """Run metadata of the end-of-run message, e.g. condition and time_end"""
-        return dict(self._file[self._scope]["EOR"]["run_metadata"].attrs)
+        return dict(self._file[self._daq]["EOR"]["run_metadata"].attrs)
+
+    # @property
+    # def channels(self) -> list[int]:
+    #     """Oscillodaq channels contained in every record"""
+    #     return [int(c) for c in str(self.bor["channels"]).split(",")]
 
     @property
-    def channels(self) -> list[int]:
-        """Oscilloscope channels contained in every record"""
-        return [int(c) for c in str(self.bor["channels"]).split(",")]
+    def run_type(self) -> str:
+        "DAQ run type, e.g. Pedestal or Laser"
+        return str(self.bor["run_type"])
 
     @property
-    def num_sequences(self) -> int:
-        return int(self.bor["num_sequences"])
+    def n_chips(self) -> int:
+        "The number of active Beetle chips, either 1 or 2"
+        return int(self.bor["nchips"])
+
+    @property
+    def chip_mask(self) -> list[int]:
+        "The binary chip mask indicating which of the chips is active"
+        return [int(c) for c in self.bor["chip_mask"]]
+
+    # @property
+    # def num_sequences(self) -> int:
+    #     return int(self.bor["num_sequences"])
 
     def records(self) -> Iterator[numpy.ndarray]:
         """Payload of every data record in order of their sequence number"""
-        group = self._file[self._scope]
+        group = self._file[self._daq]
         for name in sorted(k for k in group.keys() if k.startswith("data_")):
             record = group[name]
             dtype = record.attrs.get("dtype", "float64")
