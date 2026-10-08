@@ -99,6 +99,13 @@ class Run:
         "The binary chip mask indicating which of the chips is active"
         return [int(c) for c in self.bor["chip_mask"]]
 
+    @property
+    def sample_size(self) -> int:
+        "Sample_size of Alibava. We can't interrupt a run in between a sample size,"
+        "so we set it low (1-10)."
+        return self.bor["sample_size"]
+
+
     # @property
     # def num_sequences(self) -> int:
     #     return int(self.bor["num_sequences"])
@@ -111,44 +118,49 @@ class Run:
             dtype = record.attrs.get("dtype", "float64")
             yield numpy.asarray(record["block_00"], dtype=dtype)
 
-    def waveforms(self, channel: int) -> numpy.ndarray:
-        """All waveforms of a channel, shaped (number of triggers, number of samples)"""
-        channels = self.channels
-        if channel not in channels:
-            raise ValueError(f"Channel {channel} not in run, available: {channels}")
-        traces = [decode_record(record, channels, self.num_sequences)[channel] for record in self.records()]
-        if not traces:
-            return numpy.empty((0, 0))
-        return numpy.concatenate(traces)
+    # def waveforms(self, channel: int) -> numpy.ndarray:
+    #     """All waveforms of a channel, shaped (number of triggers, number of samples)"""
+    #     channels = self.channels
+    #     if channel not in channels:
+    #         raise ValueError(f"Channel {channel} not in run, available: {channels}")
+    #     traces = [decode_record(record, channels, self.num_sequences)[channel] for record in self.records()]
+    #     if not traces:
+    #         return numpy.empty((0, 0))
+    #     return numpy.concatenate(traces)
 
-    def integrals(self, channel: int) -> numpy.ndarray:
-        """Sum of samples of every waveform of a channel.
-        """
-        return self.waveforms(channel).sum(axis=1)
+    # def integrals(self, channel: int) -> numpy.ndarray:
+    #     """Sum of samples of every waveform of a channel.
+    #     """
+    #     return self.waveforms(channel).sum(axis=1)
 
-    def all_waveforms(self) -> dict[int, numpy.ndarray]:
-        """All waveforms of every channel, each shaped (number of triggers, number of samples)"""
-        channels = self.channels
-        records = [decode_record(record, channels, self.num_sequences) for record in self.records()]
-        all_samples: dict[int, list[numpy.ndarray]] = {channel: [] for channel in channels}
-        for record in records:
-            for channel, samples in record.items():
-                all_samples[channel].append(samples)
-        return {
-            channel: numpy.concatenate(blocks) if blocks else numpy.empty((0, 0))
-            for channel, blocks in all_samples.items()
-        }
+    # def all_waveforms(self) -> dict[int, numpy.ndarray]:
+    #     """All waveforms of every channel, each shaped (number of triggers, number of samples)"""
+    #     channels = self.channels
+    #     records = [decode_record(record, channels, self.num_sequences) for record in self.records()]
+    #     all_samples: dict[int, list[numpy.ndarray]] = {channel: [] for channel in channels}
+    #     for record in records:
+    #         for channel, samples in record.items():
+    #             all_samples[channel].append(samples)
+    #     return {
+    #         channel: numpy.concatenate(blocks) if blocks else numpy.empty((0, 0))
+    #         for channel, blocks in all_samples.items()
+    #     }
 
     def to_csv(self, output_path: pathlib.Path | str, point: dict[str, Any]) -> pathlib.Path:
-        """Write the waveforms as one CSV, samples as rows and triggers as columns"""
-        waveforms = self.all_waveforms()
-        channels = sorted(channel for channel, traces in waveforms.items() if traces.size)
-        if not channels:
-            raise ValueError(f"Run {point['run_id']} holds no waveforms")
+        """Write the output data to csv"""
 
-        num_samples = {waveforms[channel].shape[1] for channel in channels}
-        if len(num_samples) != 1:
-            raise ValueError(f"Channels of {point['run_id']} differ in length: {sorted(num_samples)}")
+        n_chips = self.n_chips # use this to seperate per chip
+        channels = [int(c) for c in range(len(self.bor["_data"]["beetle_0"]["mask"]))]
+        records = [decode_record(n_chips, channels) for record in self.records()]
+
+        # waveforms = self.all_waveforms()
+        # channels = sorted(channel for channel, traces in waveforms.items() if traces.size)
+        # if not channels:
+        #     raise ValueError(f"Run {point['run_id']} holds no waveforms")
+
+        # num_samples = {waveforms[channel].shape[1] for channel in channels}
+        # if len(num_samples) != 1:
+        #     raise ValueError(f"Channels of {point['run_id']} differ in length: {sorted(num_samples)}")
 
         names = ["sample"]
         columns = [numpy.arange(num_samples.pop())]
