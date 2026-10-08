@@ -19,8 +19,8 @@ from constellation.core.protocol.cscp1 import SatelliteState
 class TCTController(ScriptableController, MonitoringListener):
     """Controller which ends a run once enough triggers have been collected.
 
-    The number of triggers is taken from the SAMPLES_SIZE metric (TO BE DEFINED!) of the
-    Alibava satellite, which is the requested sample size which corresponds to the number of triggers.
+    The number of triggers is taken from the TRIG metric of the
+    Alibava satellite.
     """
 
     def __init__(self, *args: Any, daq: str = "Alibava.DAQ", **kwargs: Any) -> None:
@@ -31,10 +31,10 @@ class TCTController(ScriptableController, MonitoringListener):
         self._num_triggers = 0
 
         # Subscribe to the trigger counter of the daq
-        self.set_topics(["STAT/SAMPLE_SIZE"])
+        self.set_topics(["STAT/TRIG"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if metric.name == "SAMPLE_SIZE" and sender == self._daq:
+        if metric.name == "TRIG" and sender == self._daq:
             with self._triggers_lock:
                 self._num_triggers = int(value)
 
