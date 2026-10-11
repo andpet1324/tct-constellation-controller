@@ -25,6 +25,7 @@ tct-focus-scan = "tct.scans.focus_scan:main"
 tct-calibrate = "tct.scans.calibrate:main"
 tct-manual = "tct.scans.manual_translation:main"
 tct-monitor = "tct.waveform_monitor:main"
+tct-menu = "tct.menu:main"
 
 [tool.setuptools.packages.find]
 include = ["tct*"]

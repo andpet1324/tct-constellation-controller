@@ -3,6 +3,11 @@
 
 [_default]
 _autonomy.role = "DYNAMIC"
+HV = "Keithley.HV"
+SCOPE = "None"
+DAQ = "Alibava.DAQ"
+WRITER = "H5DataWriter.Writer"
+STAGE = "Standa.Stage"
 
 # --- Stage ---------------------------------------------------------------------
 [Standa.Stage]

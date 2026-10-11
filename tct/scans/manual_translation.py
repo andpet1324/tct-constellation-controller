@@ -10,7 +10,7 @@ from typing import Any
 import pathlib
 
 from ..controller import TCTController
-from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory, run_identifier
+from .common import read_hv, reconfigure, run_identifier, readline_int, readline_dir, data_directory
 from ..analysis.h5 import Run
 
 STAGE = "Standa.Stage"
@@ -78,26 +78,13 @@ def manual_translation(
     ctrl.log.status(f"Ended translation at position: {position}")
     return results
 
-
-def main(args: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Manual translation, one run per position entered by the user")
-    add_common_arguments(parser)
-    opts = parser.parse_args(args)
-
-    ctrl = TCTController(opts.group)
-    if not opts.no_launch:
-        bring_up(ctrl, opts.config, SATELLITES)
-
-    data_dir = data_directory(opts.config, WRITER) if opts.data else None
-
-    settings = {"triggers": opts.triggers}
-    results: list[dict[str, Any]] = []
+def manual(tgt: dict[str, any]) -> None:
+    trgs = readline_int("triggers", 1000)
+    csv_dir = readline_dir("data directory for csv (default is none)", None)
+    data_dir = data_directory(tgt["cfg"], WRITER) if csv_dir else None
+    results = []
     try:
-        manual_translation(ctrl, opts.triggers, results, data_dir, opts.data)
-    finally:
-        path = save_manifest(opts.manifest, "manual_translation", settings, results)
-        ctrl.log.status(f"Manifest of {len(results)} points written to {path}")
-
-
-if __name__ == "__main__":
-    main()
+        manual_translation(tgt["ctrl"], trgs, results, data_dir, csv_dir)
+    except Exception as err:
+        print(f"Manual translation failed with {err}")
+        return
