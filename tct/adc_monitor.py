@@ -2,12 +2,8 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Live display of the averaged oscilloscope waveforms
+Live display of the ADC counts from Alibava per channel.
 
-The LeCroy satellite publishes its most recent trace per channel as the
-WAVEFORM_C<n> metrics. TelemetryConsole can only draw scalar metrics against
-wall-clock time, so this listener averages the traces of the current run and
-plots them against the sample time from the trigger.
 """
 
 import argparse
@@ -26,18 +22,18 @@ from constellation.core.monitoring import Metric
 from .analysis.waveform import get_pedestal, get_maximum
 
 
-SCOPE = "LeCroySatellite.Scope"
-MAX_CHANNELS = 4
-WAVEFORM_METRIC = "WAVEFORM_C"
+DAQ = "Alibava.DAQ"
+MAX_CHANNELS = 128 * 2
+ADC_METRIC = ADC
 
 
 class WaveformMonitor(StandaloneListener):
     """Listener keeping a running average of the waveforms of the current run"""
 
-    def __init__(self, name: str, group: str, scope: str = SCOPE) -> None:
+    def __init__(self, name: str, group: str, daq: str = DAQ) -> None:
         super().__init__(name=name, group=group, interface=None)
 
-        self._scope = scope
+        self._daq = daq
         self._lock = threading.Lock() # make sure we´re not reading at the same time as writing
         self._sums: dict[int, numpy.ndarray] = {}
         self._counts: dict[int, int] = {}
@@ -47,12 +43,12 @@ class WaveformMonitor(StandaloneListener):
         self._dirty = False # indicates when to update the plot
         self._pause = False
 
-        topics = [f"STAT/{WAVEFORM_METRIC}{channel}" for channel in range(1, MAX_CHANNELS + 1)]
+        topics = [f"STAT/{ADC}{channel}" for channel in range(1, MAX_CHANNELS + 1)]
         topics += ["STAT/SAMPLING_PERIOD", "STAT/SAMPLE_OFFSET", "STAT/NUM_TRIGGERS"]
         self.set_topics(topics)
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if sender != self._scope:
+        if sender != self._daq:
             return
         with self._lock:
             print("METRIC NAME = ", metric.name)
@@ -179,7 +175,7 @@ class WaveformMonitor(StandaloneListener):
                 ax.relim()
                 ax.autoscale_view()
                 num = ", ".join(f"C{channel}: {count}" for channel, count in sorted(counts.items()))
-                ax.set_title(f"{self._scope} averaged waveforms ({num or 'waiting for data'}), 'r' to reset, 'p' to pause/resume")
+                ax.set_title(f"{self._daq} averaged waveforms ({num or 'waiting for data'}), 'r' to reset, 'p' to pause/resume")
                 fig.canvas.draw_idle()
             plt.pause(interval)
 

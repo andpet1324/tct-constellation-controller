@@ -13,12 +13,13 @@ import numpy
 
 from ..controller import TCTController
 from .common import add_common_arguments, bring_up, read_hv, reconfigure, save_manifest, data_directory, run_identifier
+from ..analysis.h5 import Run
 
 STAGE = "Standa.Stage"
 HV = "Keithley.HV"
-SCOPE = "LeCroySatellite.Scope"
+DAQ = "Alibava.DAQ"
 WRITER = "H5DataWriter.Writer"
-SATELLITES = [STAGE, HV, SCOPE, WRITER]
+SATELLITES = [STAGE, HV, DAQ, WRITER]
 
 
 def motor_scan(

@@ -27,9 +27,22 @@ def format_value(value: float) -> str:
     return f"{value:.9f}".replace(".", "p").replace("-", "m")
 
 
+def format_date(date: str) -> str:
+    """Format date for data output
+    """
+    table = str.maketrans({
+        ":" : "_",
+        "-" : "_",
+        " " : "_",
+    })
+    return (date.split(".")[0]).translate(table)
+
+
 def run_identifier(position: dict[str, float]) -> str:
-    """Run identifier encoding the position, e.g. x10p000000000_y20p000000000_z0p000000000"""
-    return "_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items())
+    """Run identifier encoding the position and datetime, e.g. x10p000000000_y20p000000000_z0p000000000_2026_10_10_12_05_00
+        ADD HERE IF IT IS LASER OR PEDESTAL??
+    """
+    return ("_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items()) + "_" + format_date(str(datetime.now())))
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:

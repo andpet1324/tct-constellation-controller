@@ -10,7 +10,7 @@ from typing import Any
 import pathlib
 
 from ..controller import TCTController
-from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory
+from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory, run_identifier
 from ..analysis.h5 import Run
 
 STAGE = "Standa.Stage"
@@ -18,10 +18,6 @@ HV = "Keithley.HV"
 DAQ = "Alibava.DAQ"
 WRITER = "H5DataWriter.Writer"
 SATELLITES = [STAGE, HV, DAQ, WRITER]
-
-
-def run_identifier(position: dict[str, float]) -> str:
-    return "_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items())
 
 
 def manual_translation(
