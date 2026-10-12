@@ -3,11 +3,6 @@
 
 [_default]
 _autonomy.role = "DYNAMIC"
-HV = "Keithley.HV"
-SCOPE = "None"
-DAQ = "Alibava.DAQ"
-WRITER = "H5DataWriter.Writer"
-STAGE = "Standa.Stage"
 
 # --- Stage ---------------------------------------------------------------------
 [Standa.Stage]
@@ -27,7 +22,7 @@ z = 0.0
 # --- Bias voltage ----------------------------------------------------------------
 [Keithley.HV]
 device = "2410"
-port = "/dev/ttyUSB1"
+port = "/dev/ttyUSB0"
 terminal = "rear"
 voltage = 0.0
 voltage_step = 5.0
@@ -41,33 +36,13 @@ output_directory = "/home/alibava/tct/data"
 flush_interval = 10.0
 
 [H5DataWriter.Writer._data]
-receive_from = ["Alibava.DAQ"]
+#receive_from = ["Alibava.DAQ"]
+receive_from = ["LeCroySatellite.Scope"]
 
-# --- DAQ -------------------------------------------------------------------------
-[Alibava.DAQ]
-device = "/dev/serial/by-id/usb-FTDI_FT245R_USB_FIFO_A70476NF-if00-port0"
-run_type = "Pedestal"
-sample_size = 10
-daq_delay = 10
-daq_enable_busy = true
-daq_pulse_shape = false
-
-stop_timeout = 10
-reset_board = true
-
-_autonomy.role = "NONE"
-_data.bor_timeout = 2 #60
-_data.data_timeout = 60
-_data.eor_timeout = 60
-
-[Alibava.DAQ.trigger]
-type = "TriggerPulse"
-setup = "TriggerOR"
-#dac_pulse_pos = 1.5
-dac_pulse_neg = -1500
-
-[Alibava.DAQ.beetle_0]
-latency = 134
-
-[Alibava.DAQ.beetle_1]
-latency = 134
+# --- Scope -----------------------------------------------------------------------
+# LeCrunch on TCP port 1861 requires "TCPIP (VICP)" under Utilities -> Remote
+[LeCroySatellite.Scope]
+ip_address = "10.12.160.217"
+port = 1861
+timeout = 5.0
+nsequence = 1

@@ -14,13 +14,7 @@ import numpy
 from ..controller import TCTController
 from .common import add_common_arguments, bring_up, read_hv, reconfigure, save_manifest, data_directory, run_identifier
 from ..analysis.h5 import Run
-
-STAGE = "Standa.Stage"
-HV = "Keithley.HV"
-DAQ = "Alibava.DAQ"
-WRITER = "H5DataWriter.Writer"
-SATELLITES = [STAGE, HV, DAQ, WRITER]
-
+from ..menu_meta import SATELLITES
 
 def motor_scan(
     ctrl: TCTController,
@@ -55,7 +49,7 @@ def motor_scan(
 
         # The reconfigure only returns once the stage has stopped moving
         # This does not work right now!
-        reconfigure(ctrl, STAGE, {"position": position})
+        reconfigure(ctrl, SATELLITES["STAGE"], {"position": position})
 
         run_id = run_identifier(position)
         collected = ctrl.take_run(run_id, triggers)
@@ -73,6 +67,9 @@ def motor_scan(
     return results
 
 
+def cmd_motor_scan(tgt: dict[str, any]) -> None:
+    return
+
 def main(args: list[str] | None = None) -> None:
     parser = argparse.ArgumentParser(description="Position scan, one run per point")
     add_common_arguments(parser)
@@ -80,12 +77,13 @@ def main(args: list[str] | None = None) -> None:
     parser.add_argument("--y", type=float, nargs=3, default=(0.0, 40.1, 10.0), metavar=("START", "STOP", "STEP"))
     parser.add_argument("--z", type=float, nargs=3, default=(0.0, 1.0, 1.0), metavar=("START", "STOP", "STEP"))
     opts = parser.parse_args(args)
+    satellites = [satellite for satellite in SATELLITES.values()]
 
     ctrl = TCTController(opts.group)
     if not opts.no_launch:
-        bring_up(ctrl, opts.config, SATELLITES)
+        bring_up(ctrl, opts.config, satellites)
 
-    data_dir = data_directory(opts.config, WRITER) if opts.data else None
+    data_dir = data_directory(opts.config, SATELLITES["WRITER"]) if opts.data else None
 
     settings = {"xrange": opts.x, "yrange": opts.y, "zrange": opts.z, "triggers": opts.triggers}
     results: list[dict[str, Any]] = []

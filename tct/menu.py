@@ -6,9 +6,9 @@ readline.parse_and_bind("tab: complete")
 from constellation.core.controller_configuration import load_config
 
 from .controller import TCTController
-from .scans.common import add_common_arguments, bring_up, data_directory, save_manifest, readline_int
-from .menu_layout import MENU, SATELLITES
-
+from .scans.common import add_common_arguments, bring_up
+from .menu_layout import MENU
+from .menu_meta import SATELLITES
 
 class Menu:
     def __init__(self, 
@@ -36,24 +36,28 @@ class Menu:
         self._lines[cmd.upper()] = (descr, func)
         return self
 
-    def print_help(self, tgt: dict[str, int]) -> None:
+    def print_help(self, tgt: dict[str, any]) -> None:
         for name, (descr, _) in self._lines.items():
             print(f"{name:<12} {descr}")
 
     def path(self) -> str:
         if self._parent is None:
-                return "/"
+                return "/ROOT/"
         else:
             name = self._parent.path()
             return name + self._name + "/"
 
-    def path_print(self, tgt: dict[str, int]) -> None:
+    def path_print(self, tgt: dict[str, any]) -> None:
         print(self.path())
 
-    def steer(self, tgt: dict[str, int]) -> None:
+    def steer(self, tgt: dict[str, any]) -> None:
         while True:
             readline.set_completer(self._complete)
-            cmd = input(self.path() + " > ").strip().upper()
+            try:
+                cmd = input(self.path() + " > ").strip().upper()
+            except KeyboardInterrupt:
+                print("Exiting menu")
+                exit(0)
             if not cmd:
                 continue
             if cmd == "EXIT":
@@ -85,16 +89,16 @@ def main(args: list[str] | None = None):
     parser = argparse.ArgumentParser(description="TCT Menu")
     add_common_arguments(parser)
     opts = parser.parse_args(args)
+    satellites = SATELLITES
 
     cfg = load_config(opts.config)
-    ctrl = TCTController(opts.group)
-    # satellites = SATELLITES
-    # if not opts.no_launch:
-    #     bring_up(ctrl, opts.config, satellites)
+    ctrl = TCTController(opts.group, daq=satellites["DAQ"]) # ADD OPTION FOR DIFFERENT DAQS
+    if not opts.no_launch:
+        bring_up(ctrl, opts.config, [satellite for satellite in satellites.values()])
 
     root = Menu("Menu")
     root.load_subs(MENU)
-    tgt = {"board": 0, "ctrl": ctrl, "cfg": cfg}
+    tgt = {"ctrl": ctrl, "cfg": opts.config}
     root.steer(tgt)
 
 if __name__ == "__main__":

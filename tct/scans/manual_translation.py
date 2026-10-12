@@ -10,15 +10,10 @@ from typing import Any
 import pathlib
 
 from ..controller import TCTController
-from .common import read_hv, reconfigure, run_identifier, readline_int, readline_dir, data_directory
+from .common import read_hv, reconfigure, run_identifier, data_directory
+from ..prompts import readline_int, readline_dir
 from ..analysis.h5 import Run
-
-STAGE = "Standa.Stage"
-HV = "Keithley.HV"
-DAQ = "Alibava.DAQ"
-WRITER = "H5DataWriter.Writer"
-SATELLITES = [STAGE, HV, DAQ, WRITER]
-
+from ..menu_meta import SATELLITES
 
 def manual_translation(
     ctrl: TCTController,
@@ -34,11 +29,12 @@ def manual_translation(
     position = {"x": 0.0, "y": 0.0, "z": 0.0}
 
     # Get current positions
-    sat_type, sat_name = STAGE.split(".", 1)
+    stage = SATELLITES["STAGE"]
+    sat_type, sat_name = stage.split(".", 1)
     for axis in position:
         response = ctrl.command(f"position_{axis}", None, sat_type, sat_name)
         if not response.success or response.payload is None:
-            raise RuntimeError(f"Could not read {axis} position of {STAGE}: {response}")
+            raise RuntimeError(f"Could not read {axis} position of {stage}: {response}")
         position[axis] = float(response.payload)
     ctrl.log.status(f"Stage currently at {position}")
 
@@ -60,12 +56,13 @@ def manual_translation(
         position = dict(zip(position, values))
 
         ctrl.log.status(f"Moving to position {position}")
-        reconfigure(ctrl, STAGE, {"position": position})
+        reconfigure(ctrl, stage, {"position": position})
 
-        run_id = run_identifier(position)
+        run_id = run_identifier("manual_scan")
+        position_id = position_identifier(position)
         collected = ctrl.take_run(run_id, triggers)
 
-        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, HV)}
+        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, SATELLITES["HV"])}
         results.append(point)
 
         if csv_dir is not None:
@@ -78,13 +75,15 @@ def manual_translation(
     ctrl.log.status(f"Ended translation at position: {position}")
     return results
 
-def manual(tgt: dict[str, any]) -> None:
+def cmd_manual_translation(tgt: dict[str, any]) -> None:
     trgs = readline_int("triggers", 1000)
     csv_dir = readline_dir("data directory for csv (default is none)", None)
-    data_dir = data_directory(tgt["cfg"], WRITER) if csv_dir else None
+    data_dir = data_directory(tgt["cfg"], SATELLITES["WRITER"]) if csv_dir else None
     results = []
     try:
         manual_translation(tgt["ctrl"], trgs, results, data_dir, csv_dir)
     except Exception as err:
-        print(f"Manual translation failed with {err}")
+        print(f"Manual translation interrupted with {err}")
+    finally:
+        print("Manual translation ended")
         return

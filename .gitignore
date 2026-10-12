@@ -7,3 +7,5 @@
 
 tct_constellation.egg-info/
 
+# Output files
+*.json

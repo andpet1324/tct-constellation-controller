@@ -8,7 +8,6 @@ Helpers shared by the scan scripts
 import argparse
 import json
 import pathlib
-import time
 from datetime import datetime
 from typing import Any
 
@@ -16,55 +15,6 @@ from constellation.core.controller_configuration import load_config
 from constellation.core.protocol.cscp1 import SatelliteState
 
 from ..controller import TCTController
-
-def readline_int(prompt: str, default: int | None = None) -> int:
-    while True:
-        if default is not None:
-            response = input(prompt + " [" + str(default) + "]: > ").strip()
-        else:
-            response = input(prompt + ": > ").strip()
-        if response == "" and default is not None:
-            return default
-        try:
-            value = int(response, 0)
-            return value
-        except ValueError as err:
-            print(f"{response} is not a valid integer! Failed with {err}.")
-            continue
-
-def readline_bool(prompt: str, default = False) -> bool:
-    while True:
-        response = input(prompt + " [Y/N]: > ").strip()
-        if response == "":
-            return default
-        try:
-            val = str(response).upper()
-            if val in {"Y", "YES", "TRUE", "1"}:
-                return True
-            elif val in {"N", "NO", "FALSE", "0"}:
-                return False
-        except ValueError as err:
-            print(f"{response} is not a valid answer! Failed with {err}.")
-            continue
-
-def readline_dir(prompt: str, default = None) -> str | None:
-    while True:
-        response = input(prompt + " [" + str(default) + "]: > ").strip()
-        if response == "":
-            return default
-        try:
-            path = pathlib.Path(response)
-            if path.exists():
-                return path
-            else:
-                print("directory does not exist!")
-                answer = readline_bool("create directory?")
-                if answer == True:
-                    path.mkdir(parents=True)
-                return None
-        except ValueError as err:
-            print(f"{response} is not a valid path! Failed with {err}.")
-            continue
 
 def format_value(value: float) -> str:
     """Format a number for use in a run identifier.
@@ -85,12 +35,14 @@ def format_date(date: str) -> str:
     })
     return (date.split(".")[0]).translate(table)
 
-
-def run_identifier(position: dict[str, float]) -> str:
-    """Run identifier encoding the position and datetime, e.g. x10p000000000_y20p000000000_z0p000000000_2026_10_10_12_05_00
-        ADD HERE IF IT IS LASER OR PEDESTAL??
+def position_identifier(position: dict[str, float]) -> str:
+    """Run identifier encoding the position and datetime, e.g. x10p000000000_y20p000000000_z0p000000000
     """
-    return ("_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items()) + "_" + format_date(str(datetime.now())))
+    return ("_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items()))
+
+def run_identifier(type: str) -> str:
+    """Run identifier with the type of scan and datetime"""
+    return (type + "_" + format_date(str(datetime.now())))
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:

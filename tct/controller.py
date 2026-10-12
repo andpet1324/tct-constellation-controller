@@ -23,18 +23,21 @@ class TCTController(ScriptableController, MonitoringListener):
     Alibava satellite.
     """
 
-    def __init__(self, *args: Any, daq: str = "Alibava.DAQ", **kwargs: Any) -> None:
+    def __init__(self, *args: Any, daq: str, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._daq = daq
         self._triggers_lock = threading.Lock()
         self._num_triggers = 0
 
-        # Subscribe to the trigger counter of the daq
-        self.set_topics(["STAT/TRIG"])
+        # Subscribe to the trigger counter of the 
+        if daq == "Alibava.DAQ":
+            self.set_topics(["STAT/TRIG"])
+        elif daq == "LeCroySatellite.Scope":
+            self.set_topics(["STAT/NUM_TRIGGERS"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if metric.name == "TRIG" and sender == self._daq:
+        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and sender == self._daq:
             with self._triggers_lock:
                 self._num_triggers = int(value)
 
