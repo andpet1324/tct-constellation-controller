@@ -35,10 +35,6 @@ def format_date(date: str) -> str:
     })
     return (date.split(".")[0]).translate(table)
 
-def position_identifier(position: dict[str, float]) -> str:
-    """Run identifier encoding the position and datetime, e.g. x10p000000000_y20p000000000_z0p000000000
-    """
-    return ("_".join(f"{axis}{format_value(mm)}" for axis, mm in position.items()))
 
 def run_identifier(type: str) -> str:
     """Run identifier with the type of scan and datetime"""

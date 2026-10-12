@@ -59,7 +59,6 @@ def manual_translation(
         reconfigure(ctrl, stage, {"position": position})
 
         run_id = run_identifier("manual_scan")
-        position_id = position_identifier(position)
         collected = ctrl.take_run(run_id, triggers)
 
         point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, SATELLITES["HV"])}

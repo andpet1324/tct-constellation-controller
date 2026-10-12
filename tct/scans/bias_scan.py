@@ -12,13 +12,9 @@ import numpy
 import pathlib
 
 from ..controller import TCTController
-from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory
+from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory, run_identifier
 from ..prompts import readline_int, readline_dir
 from ..menu_meta import SATELLITES
-
-def run_identifier(voltage: float) -> str:
-    """Run identifier encoding the voltage, e.g. v-50p000 -> vm50p000"""
-    return f"v{format_value(voltage)}"
 
 
 def bias_scan(
@@ -45,7 +41,7 @@ def bias_scan(
 
         reconfigure(ctrl, SATELLITES["HV"], {"voltage": voltage})
 
-        run_id = run_identifier(voltage)
+        run_id = run_identifier("bias_scan")
         collected = ctrl.take_run(run_id, triggers)
 
         # The reading is the actual output, which may differ from the setpoint
