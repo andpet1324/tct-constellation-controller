@@ -8,10 +8,12 @@ from .scans.pedestal_scan import cmd_pedestal_scan
 # from .scans.focus_scan import focus
 
 from .menu_setters import set_bias
+from .menu_getters import read_position
 
 MENU = {
     "SETTINGS": ("Settings menu", {
-        "SETBIAS": ("set the bias", set_bias),
+        "SET-BIAS": ("set the bias", set_bias),
+        "GET-POSITION": ("get position of the stages", read_position),
     }),
     "SCANS": ("TCT scans menu", {
         "MANUAL": ("translate stages manually and record data", cmd_manual_translation),

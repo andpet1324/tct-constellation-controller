@@ -23,12 +23,12 @@ z = 0.0
 [Keithley.HV]
 device = "2410"
 port = "/dev/ttyUSB0"
-terminal = "rear"
-voltage = 0.0
-voltage_step = 5.0
+terminal = "front"
+voltage = -0.0 # NEGATIVE FOR ELAD
+voltage_step = 1.0
 settle_time = 2.0
 ovp = 200.0
-compliance = 305e-3
+compliance = 305e-6
 
 # --- Data writer -----------------------------------------------------------------
 [H5DataWriter.Writer]

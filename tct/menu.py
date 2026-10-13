@@ -1,13 +1,13 @@
 from collections.abc import Callable
 import argparse
 import readline
-import time
+import pathlib
 readline.parse_and_bind("tab: complete")
 
 from constellation.core.controller_configuration import load_config
 
 from .controller import TCTController
-from .scans.common import add_common_arguments, bring_up
+from .scans.common import add_common_arguments
 from .menu_layout import MENU
 from .menu_meta import SATELLITES
 
@@ -89,7 +89,7 @@ class Menu:
 def find_sat(satellites: dict, name: str) -> tuple[str, any] | tuple[None, None]:
     try:
         for k, v in satellites.items():
-            if name in k:
+            if name.upper() in k.upper():
                 return k, v
         return (None, None)
     except RuntimeError as err:
@@ -98,25 +98,28 @@ def find_sat(satellites: dict, name: str) -> tuple[str, any] | tuple[None, None]
 
 def main(args: list[str] | None = None):
     parser = argparse.ArgumentParser(description="TCT Menu")
-    parser.add_argument("-daq", required=True, type=str, help="Provide the type of DAQ used. Options: Alibava.DAQ, LeCroySatellite.Scope")
+    parser.add_argument("-c", "--config", required=True, type=pathlib.Path, default="tct.toml", help="Constellation configuration file")
+    parser.add_argument("-daq", "--daq", required=True, type=str, help="Provide the type of DAQ used. Options: Alibava, LeCroy")
+    parser.add_argument("-g", "--group", required=True, help="Constellation group name")
+    parser.add_argument("--data", type=pathlib.Path, default=None, help="Directory for csv data")
+    parser.add_argument("--manifest", type=pathlib.Path, help="Where to write the scan manifest (JSON)")
     add_common_arguments(parser)
     opts = parser.parse_args(args)
     daq_name = opts.daq
 
     ctrl = TCTController(opts.group, daq=daq_name)
-    satellite_names = []
+    satellite_ids = []
     while True:
         satellites = ctrl.constellation.satellites
-        _, daq = find_sat(satellites, daq_name)
-        hv_name, hv = find_sat(satellites, "Keithley")
-        writer_name, writer = find_sat(satellites, "H5DataWriter")
-        stage_name, stage = find_sat(satellites, "Standa")
-        satellite_names = [daq_name, hv_name, writer_name, stage_name]
-        if all(name is not None for name in satellite_names):
+        daq_id, daq = find_sat(satellites, daq_name)
+        hv_id, hv = find_sat(satellites, "Keithley")
+        writer_id, writer = find_sat(satellites, "H5DataWriter")
+        stage_id, stage = find_sat(satellites, "Standa")
+        satellite_ids = [daq_id, hv_id, writer_id, stage_id]
+        if all(name is not None for name in satellite_ids):
             break
 
-    if not opts.no_launch:
-        bring_up(ctrl, opts.config, satellite_names)
+    ctrl.bring_up(opts.config, satellite_ids)
 
     root = Menu("Menu")
     root.load_subs(MENU)

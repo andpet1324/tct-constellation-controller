@@ -11,7 +11,6 @@ import pathlib
 from datetime import datetime
 from typing import Any
 
-from constellation.core.controller_configuration import load_config
 from constellation.core.protocol.cscp1 import SatelliteState
 from constellation.core.controller import SatelliteCommLink
 
@@ -41,22 +40,6 @@ def run_identifier(type: str) -> str:
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:
     """Command line arguments every scan needs"""
-    parser.add_argument("-c", "--config", type=pathlib.Path, default="tct.toml", help="Constellation configuration file")
-    parser.add_argument("-g", "--group", default="tct", help="Constellation group name")
-    parser.add_argument("-tr", "--triggers", type=int, default=1000, help="Triggers to collect per point")
-    parser.add_argument("--data", type=pathlib.Path, default=None, help="Directory for csv data")
-    parser.add_argument("--manifest", type=pathlib.Path, help="Where to write the scan manifest (JSON)")
-    parser.add_argument("--no-launch", action="store_true", help="Constellation is already in ORBIT, do not initialize")
-
-
-def bring_up(ctrl: TCTController, config_path: pathlib.Path, satellites: list[str]) -> None:
-    """Initialize and launch the constellation from a configuration file"""
-    cfg = load_config(config_path)
-    ctrl.await_satellites(satellites)
-    ctrl.constellation.initialize(cfg)
-    ctrl.await_state(SatelliteState.INIT)
-    ctrl.constellation.launch()
-    ctrl.await_state(SatelliteState.ORBIT)
 
 
 def data_directory(config_path: pathlib.Path, writer: SatelliteCommLink) -> pathlib.Path:
@@ -102,4 +85,5 @@ def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, flo
     except ValueError as err:
         print(f"Getting stage positions failed with {err}")
         return {}
+    ctrl.log.info(f"Stages currently at {position}")
     return position

@@ -15,20 +15,20 @@ y = 31016
 z = 30954
 
 [Standa.Stage.position]
-x = 0.0
-y = 0.0
-z = 0.0
+x = 6.9578662109375
+y = 10.279306640625
+z = 37.2548828125
 
 # --- Bias voltage ----------------------------------------------------------------
 [Keithley.HV]
 device = "2410"
 port = "/dev/ttyUSB0"
-terminal = "rear"
-voltage = 0.0
-voltage_step = 5.0
-settle_time = 2.0
+terminal = "front"
+voltage = -10.0 # NEGATIVE FOR ELAD
+voltage_step = 1.0
+settle_time = 0.5
 ovp = 200.0
-compliance = 305e-3
+compliance = 305e-6
 
 # --- Data writer -----------------------------------------------------------------
 [H5DataWriter.Writer]

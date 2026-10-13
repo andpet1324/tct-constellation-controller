@@ -5,12 +5,14 @@ SPDX-License-Identifier: EUPL-1.2
 Controller for the TCT setup, taking one run per scan point
 """
 
+import pathlib
 import threading
 import time
 from datetime import datetime
 from typing import Any
 
 from constellation.core.controller import ScriptableController
+from constellation.core.controller_configuration import load_config
 from constellation.core.listener import MonitoringListener
 from constellation.core.monitoring import Metric
 from constellation.core.protocol.cscp1 import SatelliteState
@@ -29,13 +31,13 @@ class TCTController(ScriptableController, MonitoringListener):
         self._num_triggers = 0
 
         # Subscribe to the trigger counter of the 
-        if daq == "Alibava.DAQ":
+        if daq.upper() == "ALIBAVA":
             self.set_topics(["STAT/TRIG"])
-        elif daq == "LeCroySatellite.Scope":
+        elif daq.upper() == "LECROY":
             self.set_topics(["STAT/NUM_TRIGGERS"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and sender == self._daq:
+        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and (sender.split()[0]).upper() == self._daq.upper():
             with self._triggers_lock:
                 self._num_triggers = int(value)
 
@@ -47,6 +49,15 @@ class TCTController(ScriptableController, MonitoringListener):
     def reset_triggers(self) -> None:
         with self._triggers_lock:
             self._num_triggers = 0
+
+    def bring_up(self, config_path: pathlib.Path, satellites: list[str]) -> None:
+        """Initialize and launch the constellation from a configuration file"""
+        cfg = load_config(config_path)
+        self.await_satellites(satellites)
+        self.constellation.initialize(cfg)
+        self.await_state(SatelliteState.INIT)
+        self.constellation.launch()
+        self.await_state(SatelliteState.ORBIT, timeout=360) # Can take a long time to bias
 
     def take_run(self, run_identifier: str, triggers: int, timeout: float = 300.0) -> int:
         """Take a single run until triggers have been collected.
@@ -78,3 +89,4 @@ class TCTController(ScriptableController, MonitoringListener):
         self.await_state(SatelliteState.INIT)
         
         super().reentry()
+

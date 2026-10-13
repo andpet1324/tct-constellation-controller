@@ -31,6 +31,7 @@ def motor_scan(
 ) -> list[dict[str, Any]]:
     """Take a run at every point of the x/y/z grid.
         We add 0.5 to every stop point to include it in the range
+        range: (0 - 50 mm)
     """
     points = [
         {"x": float(x), "y": float(y), "z": float(z)}
@@ -72,18 +73,20 @@ def cmd_motor_scan(tgt: dict[str, any]) -> None:
 
     scan_x = readline_bool("Scan in x?", False)
     if scan_x:
-        xi = readline_float("Starting x-position", 0.0)
-        xf = readline_float("Stopping x-position", 10.0)
+        xi = readline_float("Starting x-position (min: 0.0)", 0.0)
+        xf = readline_float("Stopping x-position (max: 50.0)", 10.0)
         xstep = readline_float("Stepsize in x", 1.0)
     scan_y = readline_bool("Scan in y?", False)
     if scan_y:
-        yi = readline_float("Starting y-position", 0.0)
-        yf = readline_float("Stopping y-position", 10.0)
+        yi = readline_float("" \
+            "NOTE! Positive y points down! " \
+            "\nStarting y-position (min: 0.0)", 0.0)
+        yf = readline_float("Stopping y-position (max: 50.0)", 10.0)
         ystep = readline_float("Stepsize in y", 1.0)
     scan_z = readline_bool("Scan in z?", False)
     if scan_z:
-        zi = readline_float("Starting z-position", 0.0)
-        zf = readline_float("Stopping z-position", 10.0)
+        zi = readline_float("Starting z-position (min: 0.0)", 0.0)
+        zf = readline_float("Stopping z-position (max: 50.0)", 10.0)
         zstep = readline_float("Stepsize in z", 1.0)
 
     csv_dir = readline_dir("data directory for csv (default is none)", None)

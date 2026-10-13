@@ -28,12 +28,12 @@ def manual_translation(
     """Move the stage to positions entered by the user and take a run at each.
     """
     position = get_position(ctrl, stage)
-    ctrl.log.status(f"Stage currently at {position}")
+    ctrl.log.status(f"Stages currently at {position}")
 
     # Wait for user input and then move the stages
     while True:
         # Ask for new absolute coordinates in format x,y,z
-        input_position = input("New position as x,y,z in mm (empty to stop): ").strip()
+        input_position = input("New position as x,y,z in mm (0 - 50 mm) [empty to stop]: ").strip()
 
         if not input_position:
             break
