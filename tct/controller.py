@@ -18,9 +18,7 @@ from constellation.core.protocol.cscp1 import SatelliteState
 
 class TCTController(ScriptableController, MonitoringListener):
     """Controller which ends a run once enough triggers have been collected.
-
-    The number of triggers is taken from the TRIG metric of the
-    Alibava satellite.
+    The number of triggers is taken from the TRIG metric of the Alibava satellite, or NUM_TRIGGERS from LeCroySatellite.
     """
 
     def __init__(self, *args: Any, daq: str, **kwargs: Any) -> None:

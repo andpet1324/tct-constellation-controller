@@ -25,15 +25,13 @@ def motor_scan(
     yrange: tuple[float, float, float],
     zrange: tuple[float, float, float],
     triggers: int,
-    results: list[dict[str, Any]] | None = None,
+    results: list[dict[str, Any]] | None = [],
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
 ) -> list[dict[str, Any]]:
     """Take a run at every point of the x/y/z grid.
         We add 0.5 to every stop point to include it in the range
     """
-    if results is None:
-        results = []
     points = [
         {"x": float(x), "y": float(y), "z": float(z)}
         for x in numpy.arange(*xrange)

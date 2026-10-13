@@ -90,3 +90,16 @@ def save_manifest(path: pathlib.Path | None, scan: str, settings: dict[str, Any]
     with open(path, "w") as f:
         json.dump({"scan": scan, "settings": settings, "points": points}, f, indent=2)
     return path
+
+def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, float]:
+    """Position of the stage, empty if it cannot be read"""
+    try:
+        position = {
+            "x": float(stage.position_x().payload), 
+            "y": float(stage.position_y().payload), 
+            "z": float(stage.position_z().payload)
+        }
+    except ValueError as err:
+        print(f"Getting stage positions failed with {err}")
+        return {}
+    return position

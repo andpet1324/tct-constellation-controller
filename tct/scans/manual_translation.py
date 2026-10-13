@@ -13,7 +13,7 @@ from constellation.core.controller import SatelliteCommLink
 from ..controller import TCTController
 from ..prompts import readline_int, readline_dir
 from ..analysis.h5 import Run
-from .common import read_hv, reconfigure, run_identifier, data_directory
+from .common import read_hv, reconfigure, run_identifier, data_directory, get_position
 
 
 def manual_translation(
@@ -21,23 +21,13 @@ def manual_translation(
     stage: SatelliteCommLink,
     hv: SatelliteCommLink,
     triggers: int,
-    results: list[dict[str, Any]] | None = None,
+    results: list[dict[str, Any]] | None = [],
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
 ) -> list[dict[str, Any]]:
     """Move the stage to positions entered by the user and take a run at each.
     """
-    if results is None:
-        results = []
-    try:
-        position = {
-            "x": float(stage.position_x().payload), 
-            "y": float(stage.position_y().payload), 
-            "z": float(stage.position_z().payload)
-        }
-    except Exception as err:
-        print(f"Getting stage positions failed with {err}")
-        return 
+    position = get_position(ctrl, stage)
     ctrl.log.status(f"Stage currently at {position}")
 
     # Wait for user input and then move the stages
