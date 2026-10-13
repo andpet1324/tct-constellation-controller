@@ -1,6 +1,7 @@
 from collections.abc import Callable
 import argparse
 import readline
+import time
 readline.parse_and_bind("tab: complete")
 
 from constellation.core.controller_configuration import load_config
@@ -85,20 +86,41 @@ class Menu:
             else:
                 self.line(top_cmd, top_descr, top_func)
 
+def find_sat(satellites: dict, name: str) -> tuple[str, any] | tuple[None, None]:
+    try:
+        for k, v in satellites.items():
+            if name in k:
+                return k, v
+        return (None, None)
+    except RuntimeError as err:
+        print(f"Finding satellites failed with {err}")
+        return (None, None)
+
 def main(args: list[str] | None = None):
     parser = argparse.ArgumentParser(description="TCT Menu")
+    parser.add_argument("-daq", required=True, type=str, help="Provide the type of DAQ used. Options: Alibava.DAQ, LeCroySatellite.Scope")
     add_common_arguments(parser)
     opts = parser.parse_args(args)
-    satellites = SATELLITES
+    daq_name = opts.daq
 
-    cfg = load_config(opts.config)
-    ctrl = TCTController(opts.group, daq=satellites["DAQ"]) # ADD OPTION FOR DIFFERENT DAQS
+    ctrl = TCTController(opts.group, daq=daq_name)
+    satellite_names = []
+    while True:
+        satellites = ctrl.constellation.satellites
+        _, daq = find_sat(satellites, daq_name)
+        hv_name, hv = find_sat(satellites, "Keithley")
+        writer_name, writer = find_sat(satellites, "H5DataWriter")
+        stage_name, stage = find_sat(satellites, "Standa")
+        satellite_names = [daq_name, hv_name, writer_name, stage_name]
+        if all(name is not None for name in satellite_names):
+            break
+
     if not opts.no_launch:
-        bring_up(ctrl, opts.config, [satellite for satellite in satellites.values()])
+        bring_up(ctrl, opts.config, satellite_names)
 
     root = Menu("Menu")
     root.load_subs(MENU)
-    tgt = {"ctrl": ctrl, "cfg": opts.config}
+    tgt = {"ctrl": ctrl, "cfg": opts.config, "hv": hv, "writer": writer, "stage": stage, "daq": daq}
     root.steer(tgt)
 
 if __name__ == "__main__":

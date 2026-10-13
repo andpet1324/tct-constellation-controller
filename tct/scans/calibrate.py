@@ -6,28 +6,32 @@ Instrument calibration: scope self-calibration and homing of the stage,
 replacing CalibrateInstrumentsWorker
 """
 
-import argparse
+from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
-from ..menu_meta import SATELLITES
 from ..prompts import readline_bool
 
-def calibrate(ctrl: TCTController, scope: bool = True, stage: bool = True) -> None:
-    """Self-calibrate the scope and home the stage, raising if either fails"""
-    if scope:
-        ctrl.log.status("Scope self-calibration, this takes a while...")
-        sat_type, sat_name = SATELLITES["SCOPE"].split(".", 1)
-        response = ctrl.command("calibrate", None, sat_type, sat_name)
+
+def calibrate(
+        ctrl: TCTController, 
+        daq: SatelliteCommLink, 
+        stage: SatelliteCommLink,
+        run_scope: bool = True, 
+        run_stage: bool = True) -> None:
+    """Self-calibrate the scope and home the stage, raising if either fails. 0 Means it passed"""
+    if run_scope:
+        ctrl.log.status("Scope self-calibration...")
+        response = daq.calibrate()
         if not response.success:
             raise RuntimeError(f"Scope calibration failed: {response.errmsg}")
         if response.payload != 0:
+            print(response.payload)
             raise RuntimeError(f"Scope calibration returned status {response.payload}: {response.msg}")
-        ctrl.log.status(response.msg)
+        ctrl.log.status(response.msg + " (0 = passed)")
 
-    if stage:
+    if run_stage:
         ctrl.log.status("Homing stage...")
-        sat_type, sat_name = SATELLITES["STAGE"].split(".", 1)
-        response = ctrl.command("home", None, sat_type, sat_name)
+        response = stage.home()
         if not response.success:
             raise RuntimeError(f"Homing failed: {response.errmsg}")
         ctrl.log.status(response.msg)
@@ -38,8 +42,9 @@ def cmd_calibrate(tgt: dict[str, any]) -> None:
     scope = readline_bool("Calibrate the scope?", False)
     stage = readline_bool("Calibrate the stage?", False)
     try:
-        calibrate(tgt["ctrl"], scope, stage)
+        calibrate(tgt["ctrl"], tgt["daq"], tgt["stage"], scope, stage)
     except Exception as err:
-        print(f"Failed calibrating with {err}")
+        print(f"Calibration ended with error: {err}")
     finally:
+        print("Calibration ended")
         return

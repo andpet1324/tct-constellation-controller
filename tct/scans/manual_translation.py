@@ -5,18 +5,21 @@ SPDX-License-Identifier: EUPL-1.2
 Position scan: one run per stage position, replacing MotorScanWorker
 """
 
-import argparse
 from typing import Any
 import pathlib
 
+from constellation.core.controller import SatelliteCommLink
+
 from ..controller import TCTController
-from .common import read_hv, reconfigure, run_identifier, data_directory
 from ..prompts import readline_int, readline_dir
 from ..analysis.h5 import Run
-from ..menu_meta import SATELLITES
+from .common import read_hv, reconfigure, run_identifier, data_directory
+
 
 def manual_translation(
     ctrl: TCTController,
+    stage: SatelliteCommLink,
+    hv: SatelliteCommLink,
     triggers: int,
     results: list[dict[str, Any]] | None = None,
     data_dir: pathlib.Path | None = None,
@@ -26,16 +29,15 @@ def manual_translation(
     """
     if results is None:
         results = []
-    position = {"x": 0.0, "y": 0.0, "z": 0.0}
-
-    # Get current positions
-    stage = SATELLITES["STAGE"]
-    sat_type, sat_name = stage.split(".", 1)
-    for axis in position:
-        response = ctrl.command(f"position_{axis}", None, sat_type, sat_name)
-        if not response.success or response.payload is None:
-            raise RuntimeError(f"Could not read {axis} position of {stage}: {response}")
-        position[axis] = float(response.payload)
+    try:
+        position = {
+            "x": float(stage.position_x().payload), 
+            "y": float(stage.position_y().payload), 
+            "z": float(stage.position_z().payload)
+        }
+    except Exception as err:
+        print(f"Getting stage positions failed with {err}")
+        return 
     ctrl.log.status(f"Stage currently at {position}")
 
     # Wait for user input and then move the stages
@@ -61,7 +63,7 @@ def manual_translation(
         run_id = run_identifier("manual_scan")
         collected = ctrl.take_run(run_id, triggers)
 
-        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, SATELLITES["HV"])}
+        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
         results.append(point)
 
         if csv_dir is not None:
@@ -77,12 +79,12 @@ def manual_translation(
 def cmd_manual_translation(tgt: dict[str, any]) -> None:
     trgs = readline_int("triggers", 1000)
     csv_dir = readline_dir("data directory for csv (default is none)", None)
-    data_dir = data_directory(tgt["cfg"], SATELLITES["WRITER"]) if csv_dir else None
+    data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None
     results = []
     try:
-        manual_translation(tgt["ctrl"], trgs, results, data_dir, csv_dir)
+        manual_translation(tgt["ctrl"], tgt["stage"], tgt["hv"], trgs, results, data_dir, csv_dir)
     except Exception as err:
-        print(f"Manual translation interrupted with {err}")
+        print(f"Manual translation interrupted with error: {err}")
     finally:
         print("Manual translation ended")
         return

@@ -5,19 +5,22 @@ SPDX-License-Identifier: EUPL-1.2
 Position scan: one run per stage position, replacing MotorScanWorker
 """
 
-import argparse
 import pathlib
 from typing import Any
-
 import numpy
 
+from constellation.core.controller import SatelliteCommLink
+
 from ..controller import TCTController
-from .common import add_common_arguments, bring_up, read_hv, reconfigure, save_manifest, data_directory, run_identifier
 from ..analysis.h5 import Run
-from ..menu_meta import SATELLITES
+from ..prompts import readline_dir, readline_int, readline_bool, readline_float
+from .common import reconfigure, read_hv, save_manifest, data_directory, run_identifier
+
 
 def motor_scan(
     ctrl: TCTController,
+    stage: SatelliteCommLink,
+    hv: SatelliteCommLink,
     xrange: tuple[float, float, float],
     yrange: tuple[float, float, float],
     zrange: tuple[float, float, float],
@@ -27,11 +30,7 @@ def motor_scan(
     csv_dir: pathlib.Path | None = None,
 ) -> list[dict[str, Any]]:
     """Take a run at every point of the x/y/z grid.
-
-    Ranges are (start, stop, step) as for numpy.arange. Returns one entry per
-    point with the run identifier, position, trigger count and HV reading. The
-    entries are appended to `results` as they are taken, so that a caller keeps
-    the points taken so far if the scan is interrupted.
+        We add 0.5 to every stop point to include it in the range
     """
     if results is None:
         results = []
@@ -43,18 +42,15 @@ def motor_scan(
     ]
     if not points:
         raise ValueError("Scan ranges contain no points")
-
     for index, position in enumerate(points, start=1):
         ctrl.log.status(f"Point {index}/{len(points)}: {position}")
 
-        # The reconfigure only returns once the stage has stopped moving
-        # This does not work right now!
-        reconfigure(ctrl, SATELLITES["STAGE"], {"position": position})
+        reconfigure(ctrl, stage, {"position": position})
 
         run_id = run_identifier("motor_scan")
         collected = ctrl.take_run(run_id, triggers)
 
-        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, HV)}
+        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
         results.append(point)
 
         if csv_dir is not None:
@@ -63,37 +59,61 @@ def motor_scan(
                     ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
             except Exception as err:
                 ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
-
     return results
 
 
 def cmd_motor_scan(tgt: dict[str, any]) -> None:
-    return
+    tgt["ctrl"].log.status("Starting motor scan...")
 
-def main(args: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Position scan, one run per point")
-    add_common_arguments(parser)
-    parser.add_argument("--x", type=float, nargs=3, default=(0.0, 40.1, 10.0), metavar=("START", "STOP", "STEP"))
-    parser.add_argument("--y", type=float, nargs=3, default=(0.0, 40.1, 10.0), metavar=("START", "STOP", "STEP"))
-    parser.add_argument("--z", type=float, nargs=3, default=(0.0, 1.0, 1.0), metavar=("START", "STOP", "STEP"))
-    opts = parser.parse_args(args)
-    satellites = [satellite for satellite in SATELLITES.values()]
+    trgs = readline_int("Triggers", 1000)
 
-    ctrl = TCTController(opts.group)
-    if not opts.no_launch:
-        bring_up(ctrl, opts.config, satellites)
+    xi = xf = tgt["stage"].position_x().payload
+    yi = yf = tgt["stage"].position_y().payload
+    zi = zf = tgt["stage"].position_z().payload
+    xstep = ystep = zstep = 1
 
-    data_dir = data_directory(opts.config, SATELLITES["WRITER"]) if opts.data else None
+    scan_x = readline_bool("Scan in x?", False)
+    if scan_x:
+        xi = readline_float("Starting x-position", 0.0)
+        xf = readline_float("Stopping x-position", 10.0)
+        xstep = readline_float("Stepsize in x", 1.0)
+    scan_y = readline_bool("Scan in y?", False)
+    if scan_y:
+        yi = readline_float("Starting y-position", 0.0)
+        yf = readline_float("Stopping y-position", 10.0)
+        ystep = readline_float("Stepsize in y", 1.0)
+    scan_z = readline_bool("Scan in z?", False)
+    if scan_z:
+        zi = readline_float("Starting z-position", 0.0)
+        zf = readline_float("Stopping z-position", 10.0)
+        zstep = readline_float("Stepsize in z", 1.0)
 
-    settings = {"xrange": opts.x, "yrange": opts.y, "zrange": opts.z, "triggers": opts.triggers}
+    csv_dir = readline_dir("data directory for csv (default is none)", None)
+    data_dir = data_directory(tgt["cfg"], tgt["Writer"]) if csv_dir else None
+    settings = {
+        "xrange": (xi, xf+0.5, xstep), 
+        "yrange": (yi, yf+0.5, ystep), 
+        "zrange": (zi, zf+0.5, zstep), 
+        "triggers": trgs
+    }
     results: list[dict[str, Any]] = []
     try:
-        motor_scan(ctrl, tuple(opts.x), tuple(opts.y), tuple(opts.z), opts.triggers, results, data_dir, opts.data)
+       motor_scan(
+            tgt["ctrl"],
+            tgt["stage"],
+            tgt["hv"],
+            (xi, xf+0.5, xstep), 
+            (yi, yf+0.5, ystep), 
+            (zi, zf+0.5, zstep), 
+            trgs, 
+            results, 
+            data_dir, 
+            csv_dir
+        )
+    except Exception as err:
+        print(f"Motor scan interrupted with error: {err}")
     finally:
-        # Also on interruption: keep what was taken so far
-        path = save_manifest(opts.manifest, "motor_scan", settings, results)
-        ctrl.log.status(f"Manifest of {len(results)} points written to {path}")
-
-
-if __name__ == "__main__":
-    main()
+        path = save_manifest(data_dir, "motor_scan", settings, results)
+        tgt["ctrl"].log.status(f"Manifest of {len(results)} points written to {path}")
+        print("Motor scan ended")
+        return

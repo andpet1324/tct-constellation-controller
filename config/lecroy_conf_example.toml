@@ -32,17 +32,17 @@ compliance = 305e-3
 
 # --- Data writer -----------------------------------------------------------------
 [H5DataWriter.Writer]
-output_directory = "/home/alibava/tct/data"
+output_directory = "/home/teleuser/ELAD/tct/data"
 flush_interval = 10.0
 
 [H5DataWriter.Writer._data]
-#receive_from = ["Alibava.DAQ"]
 receive_from = ["LeCroySatellite.Scope"]
 
 # --- Scope -----------------------------------------------------------------------
 # LeCrunch on TCP port 1861 requires "TCPIP (VICP)" under Utilities -> Remote
 [LeCroySatellite.Scope]
-ip_address = "10.12.160.217"
+#ip_address = "10.12.162.141"
+ip_address = "169.254.40.151"
 port = 1861
 timeout = 5.0
 nsequence = 1

@@ -14,7 +14,7 @@ MENU = {
     }),
     "SCANS": ("TCT scans menu", {
         "MANUAL": ("translate stages manually and record data", cmd_manual_translation),
-        "SCAN": ("scan a spatial range", cmd_motor_scan),
+        "MOTOR-SCAN": ("scan a spatial range", cmd_motor_scan),
         "BIAS-SCAN": ("scan a bias range in one position", cmd_bias_scan),
         "CALIBRATE": ("calibrate scope or stages", cmd_calibrate)
     })

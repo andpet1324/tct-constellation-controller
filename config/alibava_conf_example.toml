@@ -32,7 +32,7 @@ compliance = 305e-3
 
 # --- Data writer -----------------------------------------------------------------
 [H5DataWriter.Writer]
-output_directory = "/home/alibava/tct/data"
+output_directory = "/home/teleuser/ELAD/tct/data"
 flush_interval = 10.0
 
 [H5DataWriter.Writer._data]
