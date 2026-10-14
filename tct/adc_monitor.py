@@ -26,6 +26,8 @@ DAQ = "Alibava.DAQ"
 MAX_CHANNELS = 128 * 2
 ADC_METRIC = ADC
 
+## THIS DOES NOT WORK!!
+
 
 class WaveformMonitor(StandaloneListener):
     """Listener keeping a running average of the waveforms of the current run"""

@@ -12,8 +12,10 @@ run_group = df.groupby('run')
 fig, ax = plt.subplots(1,1)
 
 for run_id, run_df in run_group:
-    if run_id != 1000:
-        continue
-    ax.plot(run_df["channel"], run_df["adc"], 'o', ms=2)
+    # if run_id < 1000 or run_id > 1020:
+    #     continue
+    # print(run_id)
+    # run_df = run_df[run_df["adc"] > 0]
+    ax.plot(run_df["channel"], run_df["adc"], '-o', ms=2)
 
 plt.show()

@@ -32,12 +32,13 @@ class TCTController(ScriptableController, MonitoringListener):
 
         # Subscribe to the trigger counter of the 
         if daq.upper() == "ALIBAVA":
+            print("Using STAT/TRIG metric!")
             self.set_topics(["STAT/TRIG"])
         elif daq.upper() == "LECROY":
             self.set_topics(["STAT/NUM_TRIGGERS"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and (sender.split()[0]).upper() == self._daq.upper():
+        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and (sender.split(".", 1)[0]).upper() == self._daq.upper():
             with self._triggers_lock:
                 self._num_triggers = int(value)
 
@@ -57,11 +58,12 @@ class TCTController(ScriptableController, MonitoringListener):
         self.constellation.initialize(cfg)
         self.await_state(SatelliteState.INIT)
         self.constellation.launch()
-        self.await_state(SatelliteState.ORBIT, timeout=360) # Can take a long time to bias
+        self.await_state(SatelliteState.ORBIT, timeout = 360) # Can take a long time to bias
 
-    def take_run(self, run_identifier: str, triggers: int, timeout: float = 300.0) -> int:
+    def take_run(self, run_identifier: str, triggers: int, timeout: int = 360) -> int:
         """Take a single run until triggers have been collected.
         """
+        timeout = timeout + 0.01 * triggers # Add some time if we have a lot of triggers
         self.reset_triggers()
 
         self.constellation.start(run_identifier)
@@ -70,6 +72,7 @@ class TCTController(ScriptableController, MonitoringListener):
         deadline = time.monotonic() + timeout
         try:
             while self.num_triggers < triggers:
+                self.log.info(f"Trigger {self.num_triggers} / {triggers}")
                 if time.monotonic() > deadline:
                     raise TimeoutError(
                         f"Run {run_identifier} collected {self.num_triggers}/{triggers} triggers in {timeout}s"

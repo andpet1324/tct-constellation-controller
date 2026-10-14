@@ -17,24 +17,27 @@ import pandas
 CHANNELS = 128
 
 # ADD RUNTYPE
-def decode_record(payload: numpy.ndarray) -> dict[str, numpy.ndarray]:
+def decode_record(payload: numpy.ndarray) -> numpy.ndarray:
     """Split one Alibava data record into ...
 
        Each record contains a data block of 256 words, with value ADC count and SOMETHING?.
     """
 
-    # Every other value is ADC of respective channel
-    adc = payload[::2]
-    trim = payload[1::2] # I DONT ACTUALLY KNOW WHAT THIS IS
+    #
+    # The data comes in pairs of two:
+    #       (val1, val2)
+    # The stored value by Alibava is uint16, meaning it has the max value of 256x256
+    # which corresponds to (0,256) = 0*256 + 256*256. Therefore val1 is the least 
+    # significant value. 
+    #
+    adc = numpy.zeros(128)
+    for i in range(0,len(payload),2):
+        adc[int(i/2)] = payload[i] + payload[i+1]*256
 
-    record = {
-        "adc" : adc,
-        "trim" : trim
-    }
-
-    return record
+    return adc
 
 class Run:
+
     """One run in an HDF5 file, giving access to the oscillodaq waveforms.
     """
 
@@ -121,7 +124,7 @@ class Run:
     def adc(self, chip: int) -> numpy.ndarray:
         """The adc of all channels on a beetle chip, shaped (number of channels, number of records)"""
         # channels = self.channels * (1 + chip)
-        counts = [decode_record(record)["adc"] for record in self.records(chip)]
+        counts = [decode_record(record) for record in self.records(chip)]
         return numpy.stack(counts)
 
     def pedestal(self, chip: int) -> numpy.ndarray:
@@ -133,27 +136,24 @@ class Run:
         pedestals = self.adc(chip)
         return numpy.mean(pedestals)
 
-    def noise(self, chip: int) -> numpy.ndarray:
-        adc = self.adc(chip)
-        return adc.std(axis=0, ddof=1)
-
     def to_csv(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
         """Write the output data to csv"""
 
         n_chips = self.n_chips # use this to separate between chips
         channels = self.channels
-        chip_records : dict[str, list[dict[str, numpy.ndarray]]] = {}
+        chip_records : dict[str, list[numpy.ndarray]] = {}
         for chip in range(n_chips):
             chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(chip)]
 
         frames = []
         for id, beetle in enumerate(chip_records.values()):
+            if id%2 == 0:
+                continue
             for run, record in enumerate(beetle):
                 frames.append(pandas.DataFrame({
                     "run": run,
                     "channel": numpy.arange(len(channels) * id, len(channels) * (1 + id)),
-                    "adc": numpy.asarray(record["adc"]).flatten(),
-                    "trim": numpy.asarray(record["trim"]).flatten(),
+                    "adc": numpy.asarray(record).flatten(),
                 }))
 
         df = pandas.concat(frames, ignore_index=True)

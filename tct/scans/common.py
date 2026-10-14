@@ -11,6 +11,7 @@ import pathlib
 from datetime import datetime
 from typing import Any
 
+from constellation.core.controller_configuration import load_config
 from constellation.core.protocol.cscp1 import SatelliteState
 from constellation.core.controller import SatelliteCommLink
 
@@ -85,5 +86,4 @@ def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, flo
     except ValueError as err:
         print(f"Getting stage positions failed with {err}")
         return {}
-    ctrl.log.info(f"Stages currently at {position}")
     return position

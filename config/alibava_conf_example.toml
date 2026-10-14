@@ -24,7 +24,7 @@ z = 37.2548828125
 device = "2410"
 port = "/dev/ttyUSB0"
 terminal = "front"
-voltage = -10.0 # NEGATIVE FOR ELAD
+voltage = -100.0 # NEGATIVE FOR ELAD
 voltage_step = 1.0
 settle_time = 0.5
 ovp = 200.0
@@ -46,6 +46,7 @@ sample_size = 10
 daq_delay = 10
 daq_enable_busy = true
 daq_pulse_shape = false
+laser_delay = 52 # ns? Has to be integer. Actual delay 52.455 ns
 
 stop_timeout = 10
 reset_board = true
@@ -58,11 +59,13 @@ _data.eor_timeout = 60
 [Alibava.DAQ.trigger]
 type = "TriggerPulse"
 setup = "TriggerOR"
-#dac_pulse_pos = 1.5
-dac_pulse_neg = -1500
+dac_pulse_pos = 1000
+dac_pulse_neg = -1000
+dac_trigin_1 = -200
+dac_trigin_2 = -200
 
 [Alibava.DAQ.beetle_0]
-latency = 134
+latency = 130
 
 [Alibava.DAQ.beetle_1]
-latency = 134
+latency = 130
