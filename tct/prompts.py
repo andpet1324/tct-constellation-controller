@@ -60,6 +60,16 @@ def complete_dir(text: str, state: int) -> str | None:
         return matches[state]
     return None
 
+def complete_path(text: str, state: int) -> str | None:
+    pattern = os.path.expanduser(text) + "*"
+    matches = sorted(
+        m + "/" if os.path.isdir(m) else m
+        for m in glob.glob(pattern)
+    )
+    if state < len(matches):
+        return matches[state]
+    return None
+
 def readline_dir(prompt: str, default = None) -> pathlib.Path | None:
     while True:
         readline.set_completer(complete_dir)
@@ -78,4 +88,17 @@ def readline_dir(prompt: str, default = None) -> pathlib.Path | None:
                     return path
                 except Exception as err:
                     print(f"Exception when creating dir with {err}")
+            return None
+
+def readline_path(prompt: str, default = None) -> pathlib.Path | None:
+    while True:
+        readline.set_completer(complete_path)
+        response = input(prompt + ": > ").strip()
+        if response == "":
+            return default
+        path = pathlib.Path(response).expanduser() # expands to home directory
+        if path.is_file():
+            return path
+        else:
+            print("File does not exist!")
             return None

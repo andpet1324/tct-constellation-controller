@@ -30,15 +30,13 @@ def decode_record(payload: numpy.ndarray) -> numpy.ndarray:
     # which corresponds to (0,256) = 0*256 + 256*256. Therefore val1 is the least 
     # significant value. 
     #
-    adc = numpy.zeros(128)
-    for i in range(0,len(payload),2):
-        adc[int(i/2)] = payload[i] + payload[i+1]*256
+    adc = payload[0::2] + payload[1::2] * 256 # size 128
 
     return adc
 
 class Run:
 
-    """One run in an HDF5 file, giving access to the oscillodaq waveforms.
+    """One run in an HDF5 file, giving access to the adc data.
     """
 
     SAMPLE_FORMAT = "%.9g" # Ignore
@@ -82,9 +80,9 @@ class Run:
         return dict(self._file[self._daq]["EOR"]["run_metadata"].attrs)
 
     @property
-    def channels(self) -> list[int]:
+    def channels(self) -> numpy.ndarray[int]:
         """Channels contained in every record. It is hardcoded"""
-        return [int(c) for c in range(CHANNELS)]
+        return numpy.arange(CHANNELS)
 
     @property
     def run_type(self) -> str:
@@ -122,42 +120,44 @@ class Run:
             yield numpy.asarray(record[block], dtype=dtype)
 
     def adc(self, chip: int) -> numpy.ndarray:
-        """The adc of all channels on a beetle chip, shaped (number of channels, number of records)"""
+        """
+        Returns an array with the adc values per chip for all records, 
+        shaped (number of records, number of channels)
+        """
         # channels = self.channels * (1 + chip)
         counts = [decode_record(record) for record in self.records(chip)]
         return numpy.stack(counts)
-
-    def pedestal(self, chip: int) -> numpy.ndarray:
-        adc = self.adc(chip)
-        return adc.mean(axis=1)
+    
+    def pedestals(self, chip: int) -> numpy.ndarray:
+        """Returns an array with the pedestal value per channel"""
+        adcs = self.adc(chip)
+        return adcs.mean(axis=0)
+    
+    def noise(self, chip: int) -> numpy.ndarray:
+        """Returns an array with the noise value per channel"""
+        adcs = self.adc(chip)
+        return adcs.std(axis=0)
 
     def global_pedestal(self, chip: int) -> float:
         """Returns the pedestal value (average adc) over all channels (per chip)"""
-        pedestals = self.adc(chip)
+        pedestals = self.pedestal(chip)
         return numpy.mean(pedestals)
 
-    def to_csv(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
-        """Write the output data to csv"""
+    def to_csv_pedestals(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
+        """Write the pedestal data to csv"""
 
         n_chips = self.n_chips # use this to separate between chips
-        channels = self.channels
-        chip_records : dict[str, list[numpy.ndarray]] = {}
-        for chip in range(n_chips):
-            chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(chip)]
+        channels = numpy.asarray(self.channels).tolist()
 
         frames = []
-        for id, beetle in enumerate(chip_records.values()):
-            if id%2 == 0:
-                continue
-            for run, record in enumerate(beetle):
-                frames.append(pandas.DataFrame({
-                    "run": run,
-                    "channel": numpy.arange(len(channels) * id, len(channels) * (1 + id)),
-                    "adc": numpy.asarray(record).flatten(),
-                }))
+        for chip in range(n_chips):
+            frames.append(pandas.DataFrame({
+                "channel": numpy.arange(len(channels) * chip, len(channels) * (1 + chip)),
+                "pedestals": numpy.asarray(self.pedestals(chip)).flatten(),
+            }))
 
         df = pandas.concat(frames, ignore_index=True)
-        df.sort_values(["channel", "run"], ascending=[True, False])
+        df.sort_values("channel")
 
         header = {}
         if point is not None:
@@ -168,6 +168,48 @@ class Run:
                 "current": point.get("current"),
                 "triggers": point.get("triggers"),
                 "channels": channels,
+            }
+
+        output_path = pathlib.Path(output_path)
+        output_path.mkdir(parents=True, exist_ok=True)
+        csv_path = output_path / f"{point['run_id']}.csv"
+        with open(csv_path, "w") as f:
+            f.write(f"# {json.dumps(header, separators=(',', ':'))}\n")
+            df.to_csv(f, index=False)
+        return csv_path
+
+    def to_csv_adc(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
+        """Write the output data to csv"""
+
+        n_chips = self.n_chips # use this to separate between chips
+        channels = self.channels
+        chip_records : dict[str, list[numpy.ndarray]] = {}
+        for chip in range(n_chips):
+            chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(chip)]
+
+        frames = []
+        for id, beetle in enumerate(chip_records.values()):
+            for run, record in enumerate(beetle):
+                frames.append(pandas.DataFrame({
+                    "run": run,
+                    "channel": numpy.arange(len(channels) * id, len(channels) * (1 + id)),
+                    "adc": numpy.asarray(record).flatten(),
+                }))
+
+        df = pandas.concat(frames, ignore_index=True)
+        df.sort_values(["channel", "run"], ascending=[True, False])
+
+        for k, v in point.items():
+            print(k, type(v))
+        header = {}
+        if point is not None:
+            header = {
+                "run_id": point["run_id"],
+                **point["position"],
+                "voltage": point.get("voltage"),
+                "current": point.get("current"),
+                "triggers": point.get("triggers"),
+                "channels": list(channels),
             }
 
         output_path = pathlib.Path(output_path)

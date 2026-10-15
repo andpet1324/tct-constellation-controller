@@ -34,7 +34,7 @@ def pedestal_scan(
     if csv_dir is not None:
         try:
             with Run.from_run_id(run_id, data_dir) as run:
-                ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
+                ctrl.log.status(f"Data written to {run.to_csv_pedestals(csv_dir, point)}")
         except Exception as err:
             ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
 

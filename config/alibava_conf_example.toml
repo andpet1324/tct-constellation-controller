@@ -24,10 +24,10 @@ z = 37.2548828125
 device = "2410"
 port = "/dev/ttyUSB0"
 terminal = "front"
-voltage = -100.0 # NEGATIVE FOR ELAD
+voltage = -0.0 # NEGATIVE FOR ELAD
 voltage_step = 1.0
 settle_time = 0.5
-ovp = 200.0
+ovp = 300.0
 compliance = 305e-6
 
 # --- Data writer -----------------------------------------------------------------
@@ -45,7 +45,7 @@ run_type = "Pedestal"
 sample_size = 10
 daq_delay = 10
 daq_enable_busy = true
-daq_pulse_shape = false
+daq_pulse_shape = true
 laser_delay = 52 # ns? Has to be integer. Actual delay 52.455 ns
 
 stop_timeout = 10
@@ -59,7 +59,7 @@ _data.eor_timeout = 60
 [Alibava.DAQ.trigger]
 type = "TriggerPulse"
 setup = "TriggerOR"
-dac_pulse_pos = 1000
+dac_pulse_pos = 200
 dac_pulse_neg = -1000
 dac_trigin_1 = -200
 dac_trigin_2 = -200
