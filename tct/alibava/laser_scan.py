@@ -14,9 +14,9 @@ def laser_scan(
     stage: SatelliteCommLink,
     hv: SatelliteCommLink,
     triggers: int,
-    results: list[dict[str, any]] | None = [],
     data_dir: pathlib.Path = None,
     csv_dir: pathlib.Path = None,
+    results: list[dict[str, any]] | None = [],
 ) -> None:
     """Take data in RADSOURCE mode for an amount of triggers
         The TCT laser is a RADSOURCE to Alibava. Don't get it
@@ -52,7 +52,10 @@ def cmd_laser_scan(tgt: dict[str, any]) -> None:
         data_dir = data_directory(tgt["cfg"], tgt["writer"])
 
         try:
-            laser_scan(tgt["ctrl"], tgt["stage"], tgt["hv"], triggers, data_dir, csv_dir)
+            laser_scan(
+                tgt["ctrl"], tgt["daq"], tgt["stage"], tgt["hv"], 
+                triggers, data_dir, csv_dir
+            )
         except Exception as err:
             print(f"Laser scan interrupted with error: {err}")
         finally:

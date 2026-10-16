@@ -157,7 +157,7 @@ class Run:
             }))
 
         df = pandas.concat(frames, ignore_index=True)
-        df.sort_values("channel")
+        df = df.sort_values("channel")
 
         header = {}
         if point is not None:
@@ -182,7 +182,7 @@ class Run:
         """Write the output data to csv"""
 
         n_chips = self.n_chips # use this to separate between chips
-        channels = self.channels
+        channels = numpy.asarray(self.channels).tolist()
         chip_records : dict[str, list[numpy.ndarray]] = {}
         for chip in range(n_chips):
             chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(chip)]
@@ -197,10 +197,8 @@ class Run:
                 }))
 
         df = pandas.concat(frames, ignore_index=True)
-        df.sort_values(["channel", "run"], ascending=[True, False])
+        df = df.sort_values(["channel", "run"], ascending=[True, False])
 
-        for k, v in point.items():
-            print(k, type(v))
         header = {}
         if point is not None:
             header = {
@@ -209,7 +207,7 @@ class Run:
                 "voltage": point.get("voltage"),
                 "current": point.get("current"),
                 "triggers": point.get("triggers"),
-                "channels": list(channels),
+                "channels": channels,
             }
 
         output_path = pathlib.Path(output_path)

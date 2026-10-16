@@ -9,3 +9,8 @@ tct_constellation.egg-info/
 
 # Output files
 *.json
+
+# Images
+*.png
+*.pdf
+*.jpg

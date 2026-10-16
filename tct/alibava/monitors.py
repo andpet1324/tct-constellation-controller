@@ -1,12 +1,12 @@
 import pathlib
 import matplotlib.pyplot as plt
+import numpy
 
 from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
-from ..prompts import readline_int, readline_dir
 from ..analysis.h5 import Run
-from ..scans.common import read_hv, reconfigure, run_identifier, data_directory, get_position
+from ..scans.common import reconfigure, run_identifier, data_directory
 
 TRIGGERS = 100
 
@@ -88,11 +88,86 @@ def monitor_pedestals(
     except KeyboardInterrupt:
         return
 
+MAX_ON_PLOTS = 10000
+
+def monitor_adc(
+    ctrl: TCTController,
+    daq: SatelliteCommLink,
+    data_dir: pathlib.Path,
+) -> None:
+    """Take data in RADSOURCE mode for an amount of triggers
+    """
+
+    ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
+    reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
+
+    plt.ion()
+    fig, ax = plt.subplots(1,1)
+    plt.show(block=False)
+    plt.pause(0.1)
+
+    ax.set_xlabel("Channel")
+    ax.set_ylabel("ADC")
+
+    lines: dict[int, dict[str, any]] = {}
+
+    count = 0
+    try:
+        while plt.fignum_exists(fig.number):
+            run_id = run_identifier("monitor_signal_scan" + str(count))
+            ctrl.take_run(run_id, TRIGGERS)
+            try:
+                with Run.from_run_id(run_id, data_dir) as run:
+                    channels = run.channels
+                    for chip in range(run.n_chips):
+                        adc = run.adc(chip)
+
+                        x = channels + chip * len(channels)
+
+                        if chip not in lines:
+                            (wadc,) = ax.plot([], [], color="#64B5CD")
+                            lines[chip] = {
+                                "adc": wadc
+                            }
+
+                        ax.set_xlim(0, run.n_chips * len(channels))
+                        n_ev, n_ch = adc.shape
+                        x = numpy.arange(n_ch) + chip * n_ch
+
+                        X = numpy.full((n_ev, n_ch + 1), numpy.nan)
+                        Y = numpy.full((n_ev, n_ch + 1), numpy.nan)
+                        X[:, :n_ch] = x
+                        Y[:, :n_ch] = adc
+
+                        lines[chip]["adc"].set_data(X.ravel(), Y.ravel())
+
+                    ax.relim()
+                    ax.autoscale_view()
+                    # ax.legend()
+                    fig.canvas.draw_idle()
+                    plt.pause(0.05)
+            except Exception as err:
+                ctrl.log.warning(f"Could not get data from {run_id}: {err}")
+            count += 1
+    except KeyboardInterrupt:
+        return
+
 def cmd_monitor_pedestals(tgt: dict[str, any]) -> None:
     """Takes data and updates a plot with adc and noise until interrupted"""
     data_dir = data_directory(tgt["cfg"], tgt["writer"])
     try:
         monitor_pedestals(tgt["ctrl"], tgt["daq"], data_dir)
+    except Exception as err:
+        print(f"Monitor pedestals interrupted with error: {err}")
+    finally:
+        print("Monitor pedestals ended")
+        return
+
+def cmd_monitor_adc(tgt: dict[str, any]) -> None:
+    """Takes data and updates a plot with adc and noise until interrupted"""
+    data_dir = data_directory(tgt["cfg"], tgt["writer"])
+    try:
+        monitor_adc(tgt["ctrl"], tgt["daq"], data_dir)
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:

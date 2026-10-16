@@ -89,7 +89,7 @@ class TCTController(ScriptableController, MonitoringListener):
     def reentry(self) -> None:
         # land satellites
         self.constellation.land()
-        self.await_state(SatelliteState.INIT)
+        self.await_state(SatelliteState.INIT, timeout = 360)
         
         super().reentry()
 

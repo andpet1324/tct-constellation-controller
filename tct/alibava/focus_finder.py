@@ -6,11 +6,11 @@ from scipy.optimize import curve_fit
 from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
-from ..prompts import readline_int, readline_float, readline_bool
+from ..prompts import readline_int, readline_float, readline_bool, readline_path
 from ..analysis.h5 import Run
 from ..scans.common import reconfigure, run_identifier, data_directory, get_position
 
-ZOFFSET = 0.01 # 10 um
+ZOFFSET: float = 0.1 # 100 um
 
 
 def gaussian(x, amp, mu, sigma):
@@ -25,6 +25,7 @@ def focus_finder(
     chip: int,
     hit_threshold: float,
     data_dir: pathlib.Path,
+    pedestals: pathlib.Path,
     xrange: float, xsteps: int,
     zrange: float, zsteps: int,
     pos0: dict[str, float]
@@ -35,8 +36,17 @@ def focus_finder(
     reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
     # Move z-stage back slightly incase we're infront of the focus
-    position = {"x": pos0["x"], "y": pos0["y"], "z": pos0["z"] - ZOFFSET}
-    reconfigure(ctrl, stage, position)
+    z_start = pos0["z"] - ZOFFSET
+    position = {"x": pos0["x"], "y": pos0["y"], "z": float(z_start)}
+    ctrl.log.status(f"Moving back z-stage by {ZOFFSET} mm to: {position}")
+    reconfigure(ctrl, stage, {"position": position})
+
+    pedestals_df = numpy.genfromtxt(pedestals, delimiter=",",
+                    names=True, skip_header=1, dtype=float)
+    pedestals = pedestals_df["pedestals"]
+    ch = pedestals_df["channel"]
+    mask = (ch >= chip * 128) & (ch < (chip + 1) * 128)
+    pedestals = pedestals_df["pedestals"][mask]
 
     plt.ion()
     fig, (ax_hits, ax_sig) = plt.subplots(1, 2, figsize=(12, 5))
@@ -55,13 +65,18 @@ def focus_finder(
     ax_sig.set_xlabel("z position")
     ax_sig.set_ylabel("σ [channels]")
 
+    print(k for k in numpy.linspace(z_start, z_start + zrange, zsteps))
+    print(i for i in numpy.linspace(pos0["x"], pos0["x"] + xrange, xsteps))
+
     count = 0
+    scan_range = xsteps + zsteps
     widths = []
     try:
-        for z in range(pos0["z"], pos0["z"] + zrange, zsteps):
-            for x in range(pos0["x"], pos0["x"] + xrange, xsteps):
-                position = {"x": x, "y": pos0["y"], "z": z}
-                reconfigure(ctrl, stage, position)
+        for z in numpy.linspace(z_start, z_start + zrange, zsteps):
+            for x in numpy.linspace(pos0["x"], pos0["x"] + xrange, xsteps):
+                position = {"x": float(x), "y": float(pos0["y"]), "z": float(z)}
+                ctrl.log.status(f"Point {count}/{scan_range}: {position}")
+                reconfigure(ctrl, stage, {"position": position})
                 run_id = run_identifier("focus_finder_scan" + str(count))
                 ctrl.take_run(run_id, trgs)
                 try:
@@ -70,8 +85,11 @@ def focus_finder(
                         xl = channels + chip * len(channels)
                         adcs = run.adc(chip)
 
+                        # subtract pedestals
+                        diff = adcs - pedestals
+                        entries = diff[numpy.abs(diff) > hit_threshold]
+
                         # hits per channel
-                        mask = adcs >= hit_threshold
                         hits = numpy.count_nonzero(mask, axis=0)
                         edges = numpy.append(xl, xl[-1] + 1) - 0.5
                         lines["hits"].set_data(values=hits, edges=edges)
@@ -82,7 +100,7 @@ def focus_finder(
                         try:
                             mean = numpy.average(xl, weights=hits)
                             rms = numpy.sqrt(numpy.average((xl - mean) ** 2, weights=hits))
-                            if rms < len(channels) / 2: # What is a good val here?
+                            if rms < 0.5 * len(channels) / numpy.sqrt(12): # What is a good val here?
                                 mean = numpy.average(xl, weights=hits)
                                 rms = numpy.sqrt(numpy.average((xl - mean) ** 2, weights=hits))
                                 p0 = [hits.max(), mean, max(rms, 0.5)]
@@ -107,24 +125,28 @@ def focus_finder(
 
                         # Plot the widths against z
                         if numpy.isfinite(sigma):
-                            ax_sig.errorbar(z, sigma, yerr=sigma_err, fmt="o", capsize=3, color="green")
+                            ax_sig.errorbar(z, sigma, yerr=sigma_err, fmt="o", color="green")
                             ax_sig.relim()
                             ax_sig.autoscale_view()
 
                         fig.canvas.draw_idle()
                         plt.pause(0.01)
                 except Exception as err:
+                    import traceback
+                    traceback.print_exc()
                     ctrl.log.warning(f"Could not get data from {run_id}: {err}")
 
-        w = numpy.array(widths, dtype=float)
-        if w.any():
-            best = numpy.argmin(w[w, 2])
-            print(f"Smallest sigma: {best[2]:.3f} ± {best[3]:.3f} at z = {best[0]:.0f}, x = {best[1]:.0f}")
-            ax_sig.axvline(best, color="k", ls="--", lw=1)
+                count += 1
 
-        plt.ioff()
-        plt.show()
-        count += 1
+        w = numpy.array(widths, dtype=float)
+        valid = w.size > 0 and numpy.isfinite(w[:, 2]).any()
+        if valid:
+            i = numpy.nanargmin(w[:, 2])
+            z_best, x_best, s_best, s_err = w[i]
+            print(f"Smallest sigma: {s_best:.3f} ± {s_err:.3f} at z = {z_best:.3f}, x = {x_best:.3f}")
+            ax_sig.axvline(z_best, color="k", ls="--", lw=1)
+        else:
+            print("No successful fits, could not determine focus")
 
     except KeyboardInterrupt:
         return
@@ -135,26 +157,28 @@ def cmd_focus_finder(tgt: dict[str, any]) -> None:
     Scans along the x-axis, plotting the hits over channels and calcualting 
     the width of the gaussian (if there is a hit)
     """
-    if (readline_bool("Did you align the laser and focus on the sensor?", True)):
-        triggers = readline_int("Triggers per run", 10000)
+    if (readline_bool("Did you align the laser and focus on the sensor?" \
+        "You can eyeball the focus with MONITOR-ADC", True)):
+        triggers = readline_int("Triggers per run", 1000)
         chip = readline_int("Beetle chip being read out", 0)
         hit_threshold = readline_float("Threshold for a hit (ADC)", 100)
         xrange = readline_float("Length to scan in x (mm)", 1.0)
         xsteps = readline_int("Number of scans in x", 10)
         zrange = readline_float("Length to scan in z (mm)", 2.0)
-        zsteps = readline_int("Number of scans in z" 10)
+        zsteps = readline_int("Number of scans in z", 10)
+        pedestal_data = readline_path("Pedestal data file path")
         data_dir = data_directory(tgt["cfg"], tgt["writer"])
         initial_position = get_position(tgt["ctrl"], tgt["stage"])
         try:
             focus_finder(tgt["ctrl"], tgt["stage"], tgt["daq"], 
                          triggers, chip, 
-                         hit_threshold, data_dir, 
+                         hit_threshold, data_dir, pedestal_data, 
                          xrange, xsteps, zrange, zsteps, 
                          initial_position)
         except Exception as err:
             print(f"Focus finder interrupted with error: {err}")
         finally:
             print("Focus finder ended. Moving stages to initial position")
-            reconfigure(tgt["ctrl"], tgt["stage"], initial_position)
+            reconfigure(tgt["ctrl"], tgt["stage"], {"position": initial_position})
             return
     return
