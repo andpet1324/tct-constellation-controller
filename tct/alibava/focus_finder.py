@@ -78,8 +78,11 @@ def focus_finder(
 
                         # fit the hits across channels
                         sigma, sigma_err = numpy.nan, numpy.nan
-                        if hits.sum() > 0:
-                            try:
+                        # Check that the spread of hits is not over all channels (no signal)
+                        try:
+                            mean = numpy.average(xl, weights=hits)
+                            rms = numpy.sqrt(numpy.average((xl - mean) ** 2, weights=hits))
+                            if rms < len(channels) / 2: # What is a good val here?
                                 mean = numpy.average(xl, weights=hits)
                                 rms = numpy.sqrt(numpy.average((xl - mean) ** 2, weights=hits))
                                 p0 = [hits.max(), mean, max(rms, 0.5)]
@@ -90,9 +93,9 @@ def focus_finder(
                                 xf = numpy.linspace(edges[0], edges[-1], 200)
                                 lines["fit"].set_data(xf, gaussian(xf, *popt))
                                 lines["fit"].set_label(f"σ = {sigma:.2f} ± {sigma_err:.2f}")
-                            except (RuntimeError, ValueError):
-                                lines["fit"].set_data([], [])
-                                lines["fit"].set_label("fit failed")
+                        except (RuntimeError, ValueError):
+                            lines["fit"].set_data([], [])
+                            lines["fit"].set_label("fit failed")
 
                         print(f"run {count} (z={z}, x={x}): sigma = {sigma:.3f} ± {sigma_err:.3f} channels")
                         widths.append((z, x, sigma, sigma_err))
@@ -129,8 +132,8 @@ def focus_finder(
     
 def cmd_focus_finder(tgt: dict[str, any]) -> None:
     """
-    Scans along the x-axis, plotting the hit-profile and calcualting 
-    the width of the gaussian across channels
+    Scans along the x-axis, plotting the hits over channels and calcualting 
+    the width of the gaussian (if there is a hit)
     """
     if (readline_bool("Did you align the laser and focus on the sensor?", True)):
         triggers = readline_int("Triggers per run", 10000)

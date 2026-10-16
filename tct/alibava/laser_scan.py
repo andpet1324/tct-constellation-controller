@@ -44,8 +44,7 @@ def laser_scan(
     
 def cmd_laser_scan(tgt: dict[str, any]) -> None:
     """
-    Scans along the x-axis, plotting the hit-profile and calcualting 
-    the width of the gaussian across channels
+    Do a RADSOURCE run in one position and save the data to csv for analysis
     """
     if (readline_bool("Did you align the laser on the sensor?", True)):
         triggers = readline_int("Triggers per run", 10000)
