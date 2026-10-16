@@ -55,6 +55,7 @@ def focus_finder(
     ax_sig.set_xlabel("z position")
     ax_sig.set_ylabel("σ [channels]")
 
+    count = 0
     widths = []
     try:
         for z in range(pos0["z"], pos0["z"] + zrange, zsteps):
@@ -113,14 +114,14 @@ def focus_finder(
                     ctrl.log.warning(f"Could not get data from {run_id}: {err}")
 
         w = numpy.array(widths, dtype=float)
-        good = numpy.isfinite(w[:, 2])
-        if good.any():
-            best = w[good][numpy.argmin(w[good, 2])]
+        if w.any():
+            best = numpy.argmin(w[w, 2])
             print(f"Smallest sigma: {best[2]:.3f} ± {best[3]:.3f} at z = {best[0]:.0f}, x = {best[1]:.0f}")
-            ax_sig.axvline(best[0], color="k", ls="--", lw=1)
+            ax_sig.axvline(best, color="k", ls="--", lw=1)
 
         plt.ioff()
         plt.show()
+        count += 1
 
     except KeyboardInterrupt:
         return
