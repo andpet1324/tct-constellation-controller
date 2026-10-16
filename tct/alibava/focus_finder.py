@@ -87,10 +87,10 @@ def focus_finder(
 
                         # subtract pedestals
                         diff = adcs - pedestals
-                        entries = diff[numpy.abs(diff) > hit_threshold]
+                        mask = numpy.abs(diff) > hit_threshold
+                        hits = numpy.count_nonzero(mask, axis=0)
 
                         # hits per channel
-                        hits = numpy.count_nonzero(mask, axis=0)
                         edges = numpy.append(xl, xl[-1] + 1) - 0.5
                         lines["hits"].set_data(values=hits, edges=edges)
 
@@ -157,7 +157,7 @@ def cmd_focus_finder(tgt: dict[str, any]) -> None:
     Scans along the x-axis, plotting the hits over channels and calcualting 
     the width of the gaussian (if there is a hit)
     """
-    if (readline_bool("Did you align the laser and focus on the sensor?" \
+    if (readline_bool("Did you align the laser and focus on the sensor?\n" \
         "You can eyeball the focus with MONITOR-ADC", True)):
         triggers = readline_int("Triggers per run", 1000)
         chip = readline_int("Beetle chip being read out", 0)
