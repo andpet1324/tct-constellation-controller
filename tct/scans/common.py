@@ -50,12 +50,12 @@ def data_directory(config_path: pathlib.Path, writer: SatelliteCommLink) -> path
     return cfg.get_satellite_configuration(writer_name).get_path("output_directory")
 
 
-def reconfigure(ctrl: TCTController, satellite: SatelliteCommLink, partial_config: dict[str, Any]) -> None:
+def reconfigure(ctrl: TCTController, satellite: SatelliteCommLink, partial_config: dict[str, Any], timeout: int = 60) -> None:
     """Reconfigure one satellite and wait until it is back in ORBIT"""
     response = satellite.reconfigure(partial_config)
     if not response.success:
         raise RuntimeError(f"Reconfiguring {satellite} failed: {response.errmsg}")
-    ctrl.await_state(SatelliteState.ORBIT)
+    ctrl.await_state(SatelliteState.ORBIT, timeout = timeout)
 
 
 def read_hv(ctrl: TCTController, hv: SatelliteCommLink) -> dict[str, float]:

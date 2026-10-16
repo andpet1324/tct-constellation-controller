@@ -65,7 +65,7 @@ dac_trigin_1 = -200
 dac_trigin_2 = -200
 
 [Alibava.DAQ.beetle_0]
-latency = 130
+latency = 125
 
 [Alibava.DAQ.beetle_1]
-latency = 130
+latency = 125

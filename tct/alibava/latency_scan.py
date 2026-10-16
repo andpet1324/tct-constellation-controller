@@ -43,7 +43,6 @@ def latency_scan(
 
         # Set latency to new value
         reconfigure(ctrl, daq, {f"beetle_{chip}": {"latency":latency}})
-        # daq.reconfigure({f"beetle_{chip}": {"latency":latency}})
 
         collected = ctrl.take_run(run_id, trgs)
         entries = numpy.array([])

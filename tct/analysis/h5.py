@@ -140,7 +140,7 @@ class Run:
 
     def global_pedestal(self, chip: int) -> float:
         """Returns the pedestal value (average adc) over all channels (per chip)"""
-        pedestals = self.pedestal(chip)
+        pedestals = self.pedestals(chip)
         return numpy.mean(pedestals)
 
     def to_csv_pedestals(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
