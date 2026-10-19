@@ -22,7 +22,7 @@ z = 0.0
 # --- Bias voltage ----------------------------------------------------------------
 [Keithley.HV]
 device = "2410"
-port = "/dev/ttyUSB0"
+port = "/dev/ttyUSB1"
 terminal = "front"
 voltage = -0.0 # NEGATIVE FOR ELAD
 voltage_step = 1.0

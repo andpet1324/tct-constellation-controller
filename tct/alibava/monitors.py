@@ -125,7 +125,7 @@ def monitor_adc(
                         x = channels + chip * len(channels)
 
                         if chip not in lines:
-                            (wadc,) = ax.plot([], [], "-", color="#64B5CD")
+                            (wadc,) = ax.plot([], [], "--", color="#64B5CD")
                             lines[chip] = {
                                 "adc": wadc
                             }
