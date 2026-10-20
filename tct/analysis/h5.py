@@ -34,6 +34,12 @@ def decode_record(payload: numpy.ndarray) -> numpy.ndarray:
 
     return adc
 
+def decode_header(payload: numpy.ndarray) -> numpy.ndarray:
+
+    head = payload[0::2]
+
+    return head
+
 class Run:
 
     """One run in an HDF5 file, giving access to the adc data.
@@ -110,14 +116,16 @@ class Run:
         "Records collected"
         return self.eor["data_records"]
 
-    def records(self, chip : int) -> Iterator[numpy.ndarray]:
-        """Payload of every data record. Should be as many payloads as triggers"""
+    def records(self, block: int, chip: int) -> Iterator[numpy.ndarray]:
+        """
+            Payload of every data record. Should be as many payloads as triggers
+            block = 0 for data block and block = 1 for header block.
+        """
         group = self._file[self._daq]
         for name in sorted(k for k in group.keys() if k.startswith("data_")):
             record = group[name]
             dtype = record.attrs.get("dtype", "float64")
-            block = "block_0" + str(1 + 2*chip)
-            yield numpy.asarray(record[block], dtype=dtype)
+            yield numpy.asarray(record["block_0" + str(block + 2*chip)], dtype=dtype)
 
     def adc(self, chip: int) -> numpy.ndarray:
         """
@@ -125,7 +133,7 @@ class Run:
         shaped (number of records, number of channels)
         """
         # channels = self.channels * (1 + chip)
-        counts = [decode_record(record) for record in self.records(chip)]
+        counts = [decode_record(record) for record in self.records(1, chip)]
         return numpy.stack(counts)
     
     def pedestals(self, chip: int) -> numpy.ndarray:
@@ -184,8 +192,10 @@ class Run:
         n_chips = self.n_chips # use this to separate between chips
         channels = numpy.asarray(self.channels).tolist()
         chip_records : dict[str, list[numpy.ndarray]] = {}
+        chip_headers : dict[str, list[numpy.ndarray]] = {}
         for chip in range(n_chips):
-            chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(chip)]
+            chip_headers["beetle"+str(chip)] = [decode_header(record) for record in self.records(0, chip)]
+            chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(1, chip)]
 
         frames = []
         for id, beetle in enumerate(chip_records.values()):
@@ -207,7 +217,15 @@ class Run:
                 "voltage": point.get("voltage"),
                 "current": point.get("current"),
                 "triggers": point.get("triggers"),
+<<<<<<< HEAD
                 "channels": channels,
+=======
+                "channels": list(channels),
+                "chip_headers": {
+                    name: [numpy.asarray(h).tolist() for h in headers]
+                    for name, headers in chip_headers.items()
+                },
+>>>>>>> 8383670 (added data header)
             }
 
         output_path = pathlib.Path(output_path)
