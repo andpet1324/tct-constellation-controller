@@ -18,17 +18,9 @@ CHANNELS = 128
 
 # ADD RUNTYPE
 def decode_record(payload: numpy.ndarray) -> numpy.ndarray:
-<<<<<<< HEAD
-    """Split one Alibava data record into ...
-
-       The Alibava scans a full range of 100 ns, with each trigger within this interval.
-       We define select the data DELAY ns away from t = 0 s.
-
-=======
     """
         Extracts the ADC values per channel from the Alibava record
         Each record contains a data block of 256 words.
->>>>>>> 13f5546 (header)
     """
 
     #
