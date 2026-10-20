@@ -15,6 +15,7 @@ import numpy
 import pandas
 
 CHANNELS = 128
+TDC_UNIT_NS = 100.0 # one TDC integer step, the 100 ns clock derived from the system clock
 
 # ADD RUNTYPE
 def decode_record(payload: numpy.ndarray) -> numpy.ndarray:
@@ -131,6 +132,25 @@ class Run:
             dtype = record.attrs.get("dtype", "float64")
             yield numpy.asarray(record["block_0" + str(block + 2*chip)], dtype=dtype)
 
+    def _record_groups(self) -> list[h5py.Group]:
+        """Data record groups in acquisition order"""
+        group = self._file[self._daq]
+        return [group[name] for name in sorted(k for k in group.keys() if k.startswith("data_"))]
+
+    def clocks(self) -> numpy.ndarray:
+        """Clock counter of every record"""
+        return numpy.array([int(r.attrs["clock"]) for r in self._record_groups()], dtype=numpy.int64)
+
+    def times(self) -> numpy.ndarray:
+        """
+        T = 100 * (ipart + fpart / 65535). With ipart = 0 this is in the 0-100 ns window.
+        """
+        tdc = numpy.array([int(r.attrs["tdc"]) for r in self._record_groups()], dtype=numpy.int64) & 0xFFFFFFFF
+        ipart = (tdc >> 16).astype(numpy.int16).astype(numpy.float64)
+        fpart = (tdc & 0xFFFF).astype(numpy.float64)
+        fpart = numpy.where(ipart < 0, -fpart, fpart)
+        return TDC_UNIT_NS * (ipart + fpart / 65535.0)
+
     def adc(self, chip: int) -> numpy.ndarray:
         """
         Returns an array with the adc values per chip for all records, 
@@ -161,6 +181,8 @@ class Run:
         n_chips = self.n_chips # use this to separate between chips
         channels = numpy.asarray(self.channels).tolist()
 
+        times = self.times()
+
         frames = []
         for chip in range(n_chips):
             frames.append(pandas.DataFrame({
@@ -179,6 +201,9 @@ class Run:
                 "voltage": point.get("voltage"),
                 "current": point.get("current"),
                 "triggers": point.get("triggers"),
+                "time_mean": float(times.mean()),
+                "time_min": float(times.min()),
+                "time_max": float(times.max()),
                 "channels": channels,
             }
 
@@ -201,11 +226,14 @@ class Run:
             chip_headers["beetle"+str(chip)] = [decode_header(record) for record in self.records(0, chip)]
             chip_records["beetle"+str(chip)] = [decode_record(record) for record in self.records(1, chip)]
 
+        times = self.times()
+
         frames = []
         for id, beetle in enumerate(chip_records.values()):
             for run, record in enumerate(beetle):
                 frames.append(pandas.DataFrame({
                     "run": run,
+                    "time": times[run],
                     "channel": numpy.arange(len(channels) * id, len(channels) * (1 + id)),
                     "adc": numpy.asarray(record).flatten(),
                 }))
@@ -221,11 +249,7 @@ class Run:
                 "voltage": point.get("voltage"),
                 "current": point.get("current"),
                 "triggers": point.get("triggers"),
-                "channels": list(channels),
-                "chip_headers": {
-                    name: [numpy.asarray(h).tolist() for h in headers]
-                    for name, headers in chip_headers.items()
-                },
+                "channels": list(channels)
             }
 
         output_path = pathlib.Path(output_path)
