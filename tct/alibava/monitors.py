@@ -6,13 +6,14 @@ from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
 from ..analysis.h5 import Run
-from ..scans.common import reconfigure, run_identifier, data_directory
+from ..scans.common import reconfigure, run_identifier, data_directory, clear_h5
+from ..prompts import readline_int, readline_float, readline_path, readline_bool
 
-TRIGGERS = 100
 
 def monitor_pedestals(
     ctrl: TCTController,
     daq: SatelliteCommLink,
+    triggers: int,
     data_dir: pathlib.Path,
 ) -> None:
     """Take data in PEDESTAL mode for an amount of triggers
@@ -40,10 +41,10 @@ def monitor_pedestals(
         while plt.fignum_exists(fig.number):
             # fig.clear()
             run_id = run_identifier("monitor_pedestal_scan" + str(count))
-            ctrl.take_run(run_id, TRIGGERS)
+            ctrl.take_run(run_id, triggers)
 
             try:
-                with Run.from_run_id(run_id, data_dir) as run:
+                with Run.from_run_id(run_id, data_dir, clear=True) as run:
                     channels = run.channels
                     for chip in range(run.n_chips):
                         pedestals = run.pedestals(chip)
@@ -86,14 +87,22 @@ def monitor_pedestals(
                 ctrl.log.warning(f"Could not get data from {run_id}: {err}")
             count += 1
     except KeyboardInterrupt:
+        clear_h5((pathlib.Path(data_dir) / f"data_{run_id}.h5"))
         return
 
 MAX_ON_PLOTS = 10000
+DELAY_INTERVAL = 8
 
 def monitor_adc(
     ctrl: TCTController,
     daq: SatelliteCommLink,
+    triggers: int,
     data_dir: pathlib.Path,
+    delay: float,
+    pedestals: pathlib.Path,
+    hit_threshold: float,
+    ch_min: int | None,
+    ch_max: int | None,
 ) -> None:
     """Take data in RADSOURCE mode for an amount of triggers
     """
@@ -101,38 +110,81 @@ def monitor_adc(
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
     reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
+    pedestals_df = numpy.genfromtxt(pedestals, delimiter=",",
+                names=True, skip_header=1, dtype=float)
+    pedestals = pedestals_df["pedestals"]
+    ch = pedestals_df["channel"]
+
     plt.ion()
     fig, ax = plt.subplots(1,1)
+    fig_hits, ax_hits = plt.subplots(1,1)
     plt.show(block=False)
     plt.pause(0.1)
 
+    ax.grid(True)
     ax.set_xlabel("Channel")
     ax.set_ylabel("ADC")
 
+    ax_hits.grid(True)
+    ax_hits.set_xlabel("Channel")
+    ax_hits.set_ylabel("# Hits")
+
     lines: dict[int, dict[str, any]] = {}
+    lines_hits: dict[int, dict[str, any]] = {}
 
     count = 0
     try:
         while plt.fignum_exists(fig.number):
             run_id = run_identifier("monitor_signal_scan" + str(count))
-            ctrl.take_run(run_id, TRIGGERS)
+            ctrl.take_run(run_id, triggers)
             try:
                 with Run.from_run_id(run_id, data_dir) as run:
                     channels = run.channels
                     for chip in range(run.n_chips):
-                        adc = run.adc(chip)
+                        ch_mask = (ch >= chip * 128) & (ch < (chip + 1) * 128)
+                        chip_ch = ch[ch_mask]
+                        pedestals = pedestals_df["pedestals"][ch_mask]
 
-                        x = channels + chip * len(channels)
+                        adc = run.adc(chip)
+                        times = run.times()
+
+                        time_mask = numpy.abs(times - delay) < DELAY_INTERVAL
+                        if not time_mask.any():
+                            count += 1
+                            continue
+
+                        if ch_min is not None and ch_max is not None:
+                            ch_range = (chip_ch >= ch_min) & (chip_ch <= ch_max)
+                            if not ch_range.any():
+                                continue
+                            chip_ch = chip_ch[ch_range]
+                            pedestals = pedestals[ch_range]
+                            adc = adc[:, ch_range]
+                            ax.set_xlim(ch_min, ch_max)
+                            ax_hits.set_xlim(ch_min, ch_max)
+                        else:
+                            ax.set_xlim(0, run.n_chips * len(channels))
+                            ax_hits.set_xlim(0, run.n_chips * len(channels))
+
+                        adc = adc[time_mask]
+                        
+                        diff = adc - pedestals
+                        mask = numpy.abs(diff) > hit_threshold
+                        hits = numpy.count_nonzero(mask, axis=0)
 
                         if chip not in lines:
-                            (wadc,) = ax.plot([], [], "--", color="#64B5CD")
+                            (wadc,) = ax.plot([], [], "-", color="#64B5CD")
                             lines[chip] = {
                                 "adc": wadc
                             }
+                        if chip not in lines_hits:
+                            hhits = ax_hits.stairs([0], [0, 1], color="#BF3535")
+                            lines_hits[chip] = {
+                                "hits": hhits
+                            }
 
-                        ax.set_xlim(0, run.n_chips * len(channels))
                         n_ev, n_ch = adc.shape
-                        x = numpy.arange(n_ch) + chip * n_ch
+                        x = chip_ch
 
                         X = numpy.full((n_ev, n_ch + 1), numpy.nan)
                         Y = numpy.full((n_ev, n_ch + 1), numpy.nan)
@@ -141,11 +193,22 @@ def monitor_adc(
 
                         lines[chip]["adc"].set_data(X.ravel(), Y.ravel())
 
+                        # hits per channel
+                        edges = numpy.append(x, x[-1] + 1) - 0.5
+                        lines_hits[chip]["hits"].set_data(values=hits, edges=edges)
+
+                        ax.set_title(f"{n_ev} events")
+                        ax_hits.set_title(f"{n_ev} events, {hit_threshold} hit threshold, {delay} delay")
+
+
                     ax.relim()
                     ax.autoscale_view()
+                    ax_hits.relim()
+                    ax_hits.autoscale_view()
                     # ax.legend()
                     fig.canvas.draw_idle()
-                    plt.pause(0.05)
+                    fig_hits.canvas.draw_idle()
+                    plt.pause(0.1)
             except Exception as err:
                 ctrl.log.warning(f"Could not get data from {run_id}: {err}")
             count += 1
@@ -154,9 +217,10 @@ def monitor_adc(
 
 def cmd_monitor_pedestals(tgt: dict[str, any]) -> None:
     """Takes data and updates a plot with adc and noise until interrupted"""
+    triggers = readline_int("Triggers", 100)
     data_dir = data_directory(tgt["cfg"], tgt["writer"])
     try:
-        monitor_pedestals(tgt["ctrl"], tgt["daq"], data_dir)
+        monitor_pedestals(tgt["ctrl"], tgt["daq"], triggers, data_dir)
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:
@@ -166,8 +230,21 @@ def cmd_monitor_pedestals(tgt: dict[str, any]) -> None:
 def cmd_monitor_adc(tgt: dict[str, any]) -> None:
     """Takes data and updates a plot with adc and noise until interrupted"""
     data_dir = data_directory(tgt["cfg"], tgt["writer"])
+    triggers = readline_int("Triggers", 100)
+    delay = readline_float("Delay in latency window", 50.0)
+    hit_threshold = readline_float("Hit threshold", 50.0)
+    pedestal_data = readline_path("Pedestal data file path")
+    ch_min = ch_max = None
+    bmask = readline_bool("Chose a channel range?", False)
+    if bmask:
+        ch_min = readline_int("Lower bound for channel range", 70)
+        ch_max = readline_int("Upper bound for channel range", 120)
     try:
-        monitor_adc(tgt["ctrl"], tgt["daq"], data_dir)
+        monitor_adc(
+            tgt["ctrl"], tgt["daq"], 
+            triggers, data_dir, delay, 
+            pedestal_data, hit_threshold, 
+            ch_min=ch_min, ch_max=ch_max)
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:

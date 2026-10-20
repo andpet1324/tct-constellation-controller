@@ -5,6 +5,7 @@ SPDX-License-Identifier: EUPL-1.2
 Helpers shared by the scan scripts
 """
 
+import os
 import argparse
 import json
 import pathlib
@@ -37,6 +38,11 @@ def format_date(date: str) -> str:
 def run_identifier(type: str) -> str:
     """Run identifier with the type of scan and datetime"""
     return (type + "_" + format_date(str(datetime.now())))
+
+
+def clear_h5(path: pathlib.Path) -> None:
+    if os.path.exists(path):
+        os.remove(path)
 
 
 def add_common_arguments(parser: argparse.ArgumentParser) -> None:

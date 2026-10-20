@@ -13,6 +13,17 @@ path_pedestals = str(sys.argv[2])
 df = pd.read_csv(path, header=1)
 pedestals = pd.read_csv(path_pedestals, header=1)
 
+# Region of interest
+
+ch_min = 70
+ch_max = 120
+channels_mask = (df["channel"] > ch_min) & (df["channel"] < ch_max)
+df = df[channels_mask]
+
+# Only chose a select time
+delay = 50
+df = df[abs(df["time"] - delay) < 2]
+
 fig, ax = plt.subplots(1,1)
 # Subtract pedestals
 
@@ -30,25 +41,9 @@ ax.set_ylabel("ADC")
 
 fig.savefig(f"laser_signal.png", dpi=150)
 
-# SIGNAL
-
-SIGNAL_CUTS = 50
-
-fig_signal, ax_signal = plt.subplots(1,1)
-
-signal = df["signal"]
-mask = abs(signal) > SIGNAL_CUTS
-ax_signal.hist(signal[mask], bins=np.linspace(signal.min(), signal.max(), 1000))
-
-ax_signal.set_title(f"{len(run_group)} triggers with cuts on ± {SIGNAL_CUTS} ADC")
-ax_signal.set_xlabel("ADC")
-ax_signal.set_ylabel("Counts")
-
-fig_signal.savefig(f"signal_hist.png", dpi=150)
-
 # HIT MAP
 
-HIT_THRESHOLD = 100
+HIT_THRESHOLD = 25
 
 fig_hits, ax_hits = plt.subplots(1,1)
 
@@ -64,3 +59,16 @@ ax_hits.set_xlabel("Channel")
 ax_hits.set_ylabel("# Hits")
 
 fig_hits.savefig(f"hit_signal.png", dpi=150)
+
+# SIGNAL
+
+
+fig_signal, ax_signal = plt.subplots(1,1)
+
+ax_signal.hist(hit_df["adc"])
+
+ax_signal.set_title(f"{len(run_group)} triggers")
+ax_signal.set_xlabel("ADC")
+ax_signal.set_ylabel("Counts")
+
+fig_signal.savefig(f"signal_hist.png", dpi=150)

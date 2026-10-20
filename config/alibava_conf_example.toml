@@ -41,7 +41,7 @@ receive_from = ["Alibava.DAQ"]
 # --- DAQ -------------------------------------------------------------------------
 [Alibava.DAQ]
 device = "/dev/serial/by-id/usb-FTDI_FT245R_USB_FIFO_A70476NF-if00-port0"
-run_type = "Pedestal"
+run_type = "RADSOURCE"
 sample_size = 10
 daq_delay = 10
 daq_enable_busy = true
@@ -65,10 +65,10 @@ dac_trigin_1 = -200
 dac_trigin_2 = -200
 
 [Alibava.DAQ.beetle_0]
-latency = 125
+latency = 126
 #mask = [True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True, True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True]
 
 
 [Alibava.DAQ.beetle_1]
-latency = 125
+latency = 126
 #mask = [True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True, True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True]

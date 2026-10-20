@@ -19,14 +19,17 @@ from .common import read_hv, reconfigure, run_identifier, data_directory, get_po
 def manual_translation(
     ctrl: TCTController,
     stage: SatelliteCommLink,
+    daq: SatelliteCommLink,
     hv: SatelliteCommLink,
     triggers: int,
-    results: list[dict[str, Any]] | None = [],
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
 ) -> list[dict[str, Any]]:
     """Move the stage to positions entered by the user and take a run at each.
     """
+    ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
+    reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
+
     position = get_position(ctrl, stage)
     ctrl.log.status(f"Stages currently at {position}")
 
@@ -59,7 +62,7 @@ def manual_translation(
         if csv_dir is not None:
             try:
                 with Run.from_run_id(run_id, data_dir) as run:
-                    ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
+                    ctrl.log.status(f"Waveforms written to {run.to_csv_adc(csv_dir, point)}")
             except Exception as err:
                 ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
 
@@ -70,9 +73,10 @@ def cmd_manual_translation(tgt: dict[str, any]) -> None:
     trgs = readline_int("triggers", 1000)
     csv_dir = readline_dir("data directory for csv (default is none)", None)
     data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None
-    results = []
     try:
-        manual_translation(tgt["ctrl"], tgt["stage"], tgt["hv"], trgs, results, data_dir, csv_dir)
+        manual_translation(
+            tgt["ctrl"], tgt["stage"], tgt["daq"], tgt["hv"], 
+            trgs, data_dir, csv_dir)
     except Exception as err:
         print(f"Manual translation interrupted with error: {err}")
     finally:

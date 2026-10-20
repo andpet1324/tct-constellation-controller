@@ -5,6 +5,7 @@ SPDX-License-Identifier: EUPL-1.2
 Reading the HDF5 files written by the H5DataWriter satellite
 """
 
+import os
 import json
 import pathlib
 from collections.abc import Iterator
@@ -52,19 +53,24 @@ class Run:
 
     SAMPLE_FORMAT = "%.9g" # Ignore
 
-    def __init__(self, path: pathlib.Path | str, daq: str = "Alibava.DAQ") -> None:
+    def __init__(self, path: pathlib.Path | str, daq: str = "Alibava.DAQ", clear: bool = False) -> None:
         self.path = pathlib.Path(path)
         self._file = h5py.File(self.path, "r")
         self._daq = daq
+        self._clear = clear
         if daq not in self._file:
             senders = list(self._file.keys())
             self._file.close()
             raise KeyError(f"No data of {daq} in {self.path}, senders: {senders}")
 
     @classmethod
-    def from_run_id(cls, run_id: str, data_dir: pathlib.Path | str, daq: str = "Alibava.DAQ") -> "Run":
+    def from_run_id(cls, run_id: str, data_dir: pathlib.Path | str, daq: str = "Alibava.DAQ", clear: bool = False) -> "Run":
         """Open the file the H5DataWriter creates for a run identifier"""
-        return cls(pathlib.Path(data_dir) / f"data_{run_id}.h5", daq)
+        return cls(pathlib.Path(data_dir) / f"data_{run_id}.h5", daq=daq, clear=clear)
+
+    def delete_file(self) -> None:
+        if os.path.exists(self.path):
+            os.remove(self.path)
 
     def __enter__(self) -> "Run":
         return self
@@ -73,6 +79,8 @@ class Run:
         self.close()
 
     def close(self) -> None:
+        if self._clear:
+            self.delete_file()
         self._file.close()
 
     @property
@@ -144,6 +152,7 @@ class Run:
     def times(self) -> numpy.ndarray:
         """
         T = 100 * (ipart + fpart / 65535). With ipart = 0 this is in the 0-100 ns window.
+        NOTE! We can not get time in PEDESTAL mode. I've only checked that it works for RADSOURCE
         """
         tdc = numpy.array([int(r.attrs["tdc"]) for r in self._record_groups()], dtype=numpy.int64) & 0xFFFFFFFF
         ipart = (tdc >> 16).astype(numpy.int16).astype(numpy.float64)
