@@ -28,7 +28,7 @@ MENU = {
     }),
     "ALIBAVA": ("Alibava scans menu", {
         "RUN-PEDESTALS": ("runs a continous pedestal scan meant for monitoring", cmd_run_pedestals),
-        "MONITOR-ADC": ("runs a continous laser scan mean for monitoring", cmd_run_adc),
+        "RUN-ADC": ("runs a continous laser scan mean for monitoring", cmd_run_adc),
         "LATENCY-SCAN": ("latency parameter scan to find the laser signal", cmd_latency_scan),
         "LASER-SCAN": ("laser scan with adcs per channel to csv", cmd_laser_scan),
         "FOCUS-FINDER": ("scans hits over x-z range to find the laser focus", cmd_focus_finder)
