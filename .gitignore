@@ -14,3 +14,9 @@ tct_constellation.egg-info/
 *.png
 *.pdf
 *.jpg
+
+# Cache files
+*.parquet
+
+# Pycache
+*__pycache__
