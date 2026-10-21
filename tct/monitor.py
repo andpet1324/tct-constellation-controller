@@ -22,12 +22,9 @@ from constellation.core.protocol.cscp1 import SatelliteState
 
 from .analysis.h5 import Run
 from .menu import Menu
+from .prompts import readline_int, readline_float, readline_path, readline_bool
 
 DELAY_INTERVAL = 8
-
-MENU = {
-    "PEDESTALS": ("Monitor pedestals of the Alibava",)
-}
 
 class Monitor(StandaloneListener):
     """Listener keeping a running average of the waveforms of the current run"""
@@ -279,26 +276,55 @@ class Monitor(StandaloneListener):
             return
 
 
+def cmd_monitor_pedestals(tgt: dict[str, Any]) -> None:
+    """Plot pedestals and noise of the runs taken by the controller"""
+    try:
+        tgt["monitor"].monitor_pedestals(tgt["interval"])
+    except Exception as err:
+        print(f"Monitor pedestals interrupted with error: {err}")
+    finally:
+        print("Monitor pedestals ended")
+
+
+def cmd_monitor_adc(tgt: dict[str, Any]) -> None:
+    """Plot the ADC counts and hits per channel of the runs taken by the controller"""
+    delay = readline_float("Delay in latency window", 50.0)
+    hit_threshold = readline_float("Hit threshold", 50.0)
+    pedestal_data = readline_path("Pedestal data file path")
+    ch_min = ch_max = None
+    if readline_bool("Chose a channel range?", False):
+        ch_min = readline_int("Lower bound for channel range", 70)
+        ch_max = readline_int("Upper bound for channel range", 120)
+    try:
+        tgt["monitor"].monitor_adc(
+            delay, pedestal_data, hit_threshold, ch_min, ch_max, tgt["interval"]
+        )
+    except Exception as err:
+        print(f"Monitor ADC interrupted with error: {err}")
+    finally:
+        print("Monitor ADC ended")
+
+
+MENU = {
+    "PEDESTALS": ("Monitor pedestals and noise of the Alibava", cmd_monitor_pedestals),
+    "ADC": ("Monitor ADC counts and hits per channel of the Alibava", cmd_monitor_adc),
+}
+
+
 def main(args: Any = None) -> None:
     parser = argparse.ArgumentParser(description="Live display of Alibava metrics")
     parser.add_argument("-g", "--group", default="tct", help="Constellation group name")
     parser.add_argument("-n", "--name", default="tct", help="Monitor name")
     parser.add_argument("-daq", "--daq", required=True, type=str, help="Provide the type of DAQ used. Options: Alibava, LeCroy")
-    parser.add_argument("-type", type=str, default="Pedestal", help="What type of data to monitor. Options: Pedestals, Laser")
     parser.add_argument("--interval", type=float, default=0.5, help="Plot refresh interval in s")
     opts = parser.parse_args(args)
 
-    root = Menu("Menu")
+    root = Menu("Monitor")
     root.load_subs(MENU)
 
     monitor = Monitor(opts.name, opts.group, opts.daq)
     try:
-        if opts.type.upper() == "PEDESTALS":
-            monitor.monitor_pedestals(opts.interval)
-        elif opts.type.upper() == "LASER":
-            return
-    except KeyboardInterrupt:
-        pass
+        root.steer({"monitor": monitor, "interval": opts.interval})
     finally:
         monitor.terminate()
 
