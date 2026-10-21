@@ -1,0 +1,48 @@
+# SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+# SPDX-License-Identifier: CC0-1.0
+
+[_default]
+_autonomy.role = "DYNAMIC"
+
+# --- Stage ---------------------------------------------------------------------
+[Standa.Stage]
+model = "8MT30_50"
+calibrate_on_launch = false
+
+[Standa.Stage.axis_serials]
+x = 31015
+y = 31016
+z = 30954
+
+[Standa.Stage.position]
+x = 0.0
+y = 0.0
+z = 0.0
+
+# --- Bias voltage ----------------------------------------------------------------
+[Keithley.HV]
+device = "2410"
+port = "/dev/ttyUSB0"
+terminal = "front"
+voltage = -0.0 # NEGATIVE FOR ELAD
+voltage_step = 1.0
+settle_time = 2.0
+ovp = 200.0
+compliance = 305e-6
+
+# --- Data writer -----------------------------------------------------------------
+[H5DataWriter.Writer]
+output_directory = "/home/teleuser/ELAD/tct/data"
+flush_interval = 10.0
+
+[H5DataWriter.Writer._data]
+receive_from = ["LeCroySatellite.Scope"]
+
+# --- Scope -----------------------------------------------------------------------
+# LeCrunch on TCP port 1861 requires "TCPIP (VICP)" under Utilities -> Remote
+[LeCroySatellite.Scope]
+#ip_address = "10.12.162.141"
+ip_address = "169.254.40.151"
+port = 1861
+timeout = 5.0
+nsequence = 1

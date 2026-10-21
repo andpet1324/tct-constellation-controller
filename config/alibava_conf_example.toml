@@ -23,16 +23,16 @@ z = 0.0
 [Keithley.HV]
 device = "2410"
 port = "/dev/ttyUSB1"
-terminal = "rear"
-voltage = 0.0
+terminal = "front"
+voltage = -0.0 # NEGATIVE FOR ELAD
 voltage_step = 1.0
-settle_time = 2.0
-ovp = 200.0
-compliance = 305e-3
+settle_time = 0.5
+ovp = 300.0
+compliance = 305e-6
 
 # --- Data writer -----------------------------------------------------------------
 [H5DataWriter.Writer]
-output_directory = "/home/alibava/tct/data"
+output_directory = "/home/teleuser/ELAD/tct/data"
 flush_interval = 10.0
 
 [H5DataWriter.Writer._data]
@@ -41,11 +41,12 @@ receive_from = ["Alibava.DAQ"]
 # --- DAQ -------------------------------------------------------------------------
 [Alibava.DAQ]
 device = "/dev/serial/by-id/usb-FTDI_FT245R_USB_FIFO_A70476NF-if00-port0"
-run_type = "Pedestal"
+run_type = "RADSOURCE"
 sample_size = 10
 daq_delay = 10
 daq_enable_busy = true
-daq_pulse_shape = false
+daq_pulse_shape = true
+laser_delay = 52 # ns? Has to be integer. Actual delay 52.455 ns
 
 stop_timeout = 10
 reset_board = true
@@ -58,11 +59,16 @@ _data.eor_timeout = 60
 [Alibava.DAQ.trigger]
 type = "TriggerPulse"
 setup = "TriggerOR"
-#dac_pulse_pos = 1.5
-dac_pulse_neg = -1500
+dac_pulse_pos = 200
+dac_pulse_neg = -1000
+dac_trigin_1 = -200
+dac_trigin_2 = -200
 
 [Alibava.DAQ.beetle_0]
-latency = 134
+latency = 126
+#mask = [True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True, True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True]
+
 
 [Alibava.DAQ.beetle_1]
-latency = 134
+latency = 126
+#mask = [True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True, True, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, False, True]

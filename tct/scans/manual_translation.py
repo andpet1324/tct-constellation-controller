@@ -5,47 +5,38 @@ SPDX-License-Identifier: EUPL-1.2
 Position scan: one run per stage position, replacing MotorScanWorker
 """
 
-import argparse
 from typing import Any
 import pathlib
 
-from ..controller import TCTController
-from .common import add_common_arguments, bring_up, format_value, read_hv, reconfigure, save_manifest, data_directory, run_identifier
-from ..analysis.h5 import Run
+from constellation.core.controller import SatelliteCommLink
 
-STAGE = "Standa.Stage"
-HV = "Keithley.HV"
-DAQ = "Alibava.DAQ"
-WRITER = "H5DataWriter.Writer"
-SATELLITES = [STAGE, HV, DAQ, WRITER]
+from ..controller import TCTController
+from ..prompts import readline_int, readline_dir
+from ..analysis.h5 import Run
+from .common import read_hv, reconfigure, run_identifier, data_directory, get_position
 
 
 def manual_translation(
     ctrl: TCTController,
+    stage: SatelliteCommLink,
+    daq: SatelliteCommLink,
+    hv: SatelliteCommLink,
     triggers: int,
-    results: list[dict[str, Any]] | None = None,
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
-) -> list[dict[str, Any]]:
+) -> None:
     """Move the stage to positions entered by the user and take a run at each.
     """
-    if results is None:
-        results = []
-    position = {"x": 0.0, "y": 0.0, "z": 0.0}
+    ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
+    reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
-    # Get current positions
-    sat_type, sat_name = STAGE.split(".", 1)
-    for axis in position:
-        response = ctrl.command(f"position_{axis}", None, sat_type, sat_name)
-        if not response.success or response.payload is None:
-            raise RuntimeError(f"Could not read {axis} position of {STAGE}: {response}")
-        position[axis] = float(response.payload)
-    ctrl.log.status(f"Stage currently at {position}")
+    position = get_position(ctrl, stage)
+    ctrl.log.status(f"Stages currently at {position}")
 
     # Wait for user input and then move the stages
     while True:
         # Ask for new absolute coordinates in format x,y,z
-        input_position = input("New position as x,y,z in mm (empty to stop): ").strip()
+        input_position = input("New position as x,y,z in mm (0 - 50 mm) [empty to stop]: ").strip()
 
         if not input_position:
             break
@@ -60,44 +51,33 @@ def manual_translation(
         position = dict(zip(position, values))
 
         ctrl.log.status(f"Moving to position {position}")
-        reconfigure(ctrl, STAGE, {"position": position})
+        reconfigure(ctrl, stage, {"position": position})
 
-        run_id = run_identifier(position)
+        run_id = run_identifier("manual_scan")
         collected = ctrl.take_run(run_id, triggers)
 
-        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, HV)}
-        results.append(point)
+        point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
 
         if csv_dir is not None:
             try:
                 with Run.from_run_id(run_id, data_dir) as run:
-                    ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
+                    ctrl.log.status(f"Waveforms written to {run.to_csv_adc(csv_dir, point)}")
             except Exception as err:
                 ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
 
     ctrl.log.status(f"Ended translation at position: {position}")
-    return results
+    return
 
-
-def main(args: list[str] | None = None) -> None:
-    parser = argparse.ArgumentParser(description="Manual translation, one run per position entered by the user")
-    add_common_arguments(parser)
-    opts = parser.parse_args(args)
-
-    ctrl = TCTController(opts.group)
-    if not opts.no_launch:
-        bring_up(ctrl, opts.config, SATELLITES)
-
-    data_dir = data_directory(opts.config, WRITER) if opts.data else None
-
-    settings = {"triggers": opts.triggers}
-    results: list[dict[str, Any]] = []
+def cmd_manual_translation(tgt: dict[str, any]) -> None:
+    trgs = readline_int("triggers", 1000)
+    csv_dir = readline_dir("data directory for csv (default is none)", None)
+    data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None
     try:
-        manual_translation(ctrl, opts.triggers, results, data_dir, opts.data)
+        manual_translation(
+            tgt["ctrl"], tgt["stage"], tgt["daq"], tgt["hv"], 
+            trgs, data_dir, csv_dir)
+    except Exception as err:
+        print(f"Manual translation interrupted with error: {err}")
     finally:
-        path = save_manifest(opts.manifest, "manual_translation", settings, results)
-        ctrl.log.status(f"Manifest of {len(results)} points written to {path}")
-
-
-if __name__ == "__main__":
-    main()
+        print("Manual translation ended")
+        return
