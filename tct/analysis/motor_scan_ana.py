@@ -37,7 +37,7 @@ def common_mode_subtractions(df: pd.DataFrame, pedestals: pd.DataFrame):
     runs = df.groupby("run")
     for run_id, run_df in runs:
         # fit the adc distribution and take mean as baseline value
-
+        
 
 
 def main(args: list[str] | None = None):

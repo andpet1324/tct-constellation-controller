@@ -5,12 +5,11 @@ from .scans.motor_scan import cmd_motor_scan
 from .scans.calibrate import cmd_calibrate
 from .scans.bias_scan import cmd_bias_scan
 from .scans.pedestal_scan import cmd_pedestal_scan
-from .alibava.monitors import cmd_monitor_pedestals
-from .alibava.monitors import cmd_monitor_adc
+from .alibava.monitors import cmd_run_pedestals
+from .alibava.monitors import cmd_run_adc
 from .alibava.latency_scan import cmd_latency_scan
 from .alibava.laser_scan import cmd_laser_scan
 from .alibava.focus_finder import cmd_focus_finder
-# from .scans.focus_scan import focus
 
 from .menu_setters import set_bias
 from .menu_getters import read_position
@@ -28,11 +27,10 @@ MENU = {
         "PEDESTAL": ("pedestal run", cmd_pedestal_scan),
     }),
     "ALIBAVA": ("Alibava scans menu", {
-        "MONITOR-PEDESTALS": ("runs a pedestal scan and plots pedestals and noise", cmd_monitor_pedestals),
-        "MONITOR-ADC": ("runs a pedestal scan and plots adc", cmd_monitor_adc),
+        "RUN-PEDESTALS": ("runs a continous pedestal scan meant for monitoring", cmd_run_pedestals),
+        "MONITOR-ADC": ("runs a continous laser scan mean for monitoring", cmd_run_adc),
         "LATENCY-SCAN": ("latency parameter scan to find the laser signal", cmd_latency_scan),
         "LASER-SCAN": ("laser scan with adcs per channel to csv", cmd_laser_scan),
         "FOCUS-FINDER": ("scans hits over x-z range to find the laser focus", cmd_focus_finder)
     }),
 }
-

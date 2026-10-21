@@ -17,3 +17,6 @@ tct_constellation.egg-info/
 
 # Cache files
 *.parquet
+
+# Pycache
+*__pycache__

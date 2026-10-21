@@ -14,6 +14,7 @@ from typing import Any
 from constellation.core.controller import ScriptableController
 from constellation.core.controller_configuration import load_config
 from constellation.core.listener import MonitoringListener
+from constellation.core.monitoring import schedule_metric
 from constellation.core.monitoring import Metric
 from constellation.core.protocol.cscp1 import SatelliteState
 
@@ -27,8 +28,10 @@ class TCTController(ScriptableController, MonitoringListener):
         super().__init__(*args, **kwargs)
 
         self._daq = daq
+        self._data_dir = None
         self._triggers_lock = threading.Lock()
         self._num_triggers = 0
+        self._run_id = None
 
         # Subscribe to the trigger counter of the 
         if daq.upper() == "ALIBAVA":
@@ -42,6 +45,10 @@ class TCTController(ScriptableController, MonitoringListener):
             with self._triggers_lock:
                 self._num_triggers = int(value)
 
+    def set_data_dir(self, config_path: str, writer: str) -> None:
+        cfg = load_config(config_path)
+        self._data_dir = str(cfg.get_satellite_configuration(writer).get_path("output_directory"))
+    
     @property
     def num_triggers(self) -> int:
         with self._triggers_lock:
@@ -81,7 +88,8 @@ class TCTController(ScriptableController, MonitoringListener):
         finally:
             self.constellation.stop()
             self.await_state(SatelliteState.ORBIT)
-
+        
+        self._run_id = run_identifier
         collected = self.num_triggers
         self.log.status(f"Run {run_identifier} finished with {collected} triggers")
         return collected
@@ -93,3 +101,10 @@ class TCTController(ScriptableController, MonitoringListener):
         
         super().reentry()
 
+    @schedule_metric("", 1, [SatelliteState.ORBIT])
+    def RUN_IDENTIFIER(self) -> str | None:
+        return self._run_id
+
+    @schedule_metric("", 10, [SatelliteState.ORBIT])
+    def DATA_DIRECTORY(self) -> str | None:
+        return self._data_dir
