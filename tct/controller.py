@@ -14,6 +14,7 @@ from typing import Any
 from constellation.core.controller import ScriptableController
 from constellation.core.controller_configuration import load_config
 from constellation.core.listener import MonitoringListener
+from constellation.core.monitoring import schedule_metric
 from constellation.core.monitoring import Metric
 from constellation.core.protocol.cscp1 import SatelliteState
 
@@ -23,12 +24,14 @@ class TCTController(ScriptableController, MonitoringListener):
     The number of triggers is taken from the TRIG metric of the Alibava satellite, or NUM_TRIGGERS from LeCroySatellite.
     """
 
-    def __init__(self, *args: Any, daq: str, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, daq: str, data_dir: pathlib.Path, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
         self._daq = daq
+        self._data_dir = data_dir
         self._triggers_lock = threading.Lock()
         self._num_triggers = 0
+        self._run_id = None
 
         # Subscribe to the trigger counter of the 
         if daq.upper() == "ALIBAVA":
@@ -65,6 +68,7 @@ class TCTController(ScriptableController, MonitoringListener):
         """
         timeout = timeout + 0.01 * triggers # Add some time if we have a lot of triggers
         self.reset_triggers()
+        self._run_id = run_identifier
 
         self.constellation.start(run_identifier)
         self.await_state(SatelliteState.RUN)
@@ -92,4 +96,12 @@ class TCTController(ScriptableController, MonitoringListener):
         self.await_state(SatelliteState.INIT, timeout = 360)
         
         super().reentry()
+
+    @schedule_metric("", 3, [SatelliteState.RUN])
+    def RUN_IDENTIFIER(self) -> str | None:
+        return self._run_id
+
+    @schedule_metric("", 3, [SatelliteState.RUN])
+    def DATA_DIRECTORY(self) -> str | None:
+        return self._data_dir
 
