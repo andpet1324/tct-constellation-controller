@@ -24,7 +24,7 @@ def manual_translation(
     triggers: int,
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
-) -> list[dict[str, Any]]:
+) -> None:
     """Move the stage to positions entered by the user and take a run at each.
     """
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
@@ -57,7 +57,6 @@ def manual_translation(
         collected = ctrl.take_run(run_id, triggers)
 
         point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
-        results.append(point)
 
         if csv_dir is not None:
             try:
@@ -67,7 +66,7 @@ def manual_translation(
                 ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
 
     ctrl.log.status(f"Ended translation at position: {position}")
-    return results
+    return
 
 def cmd_manual_translation(tgt: dict[str, any]) -> None:
     trgs = readline_int("triggers", 1000)
