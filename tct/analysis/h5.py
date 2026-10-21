@@ -212,8 +212,7 @@ class Run:
                 "triggers": point.get("triggers"),
                 "time_mean": float(times.mean()),
                 "time_min": float(times.min()),
-                "time_max": float(times.max()),
-                "channels": channels,
+                "time_max": float(times.max())
             }
 
         output_path = pathlib.Path(output_path)
@@ -257,8 +256,7 @@ class Run:
                 **point["position"],
                 "voltage": point.get("voltage"),
                 "current": point.get("current"),
-                "triggers": point.get("triggers"),
-                "channels": list(channels)
+                "triggers": point.get("triggers")
             }
 
         output_path = pathlib.Path(output_path)
