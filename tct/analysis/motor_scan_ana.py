@@ -218,9 +218,15 @@ def main(args: list[str] | None = None):
         except Exception as err:
             print(f"Exception when creating dir with {err}")
 
-    # Seperate into stacks of 100 to reduce memory usage at one time
-    df_all = load_data(sorted(args.data)[:100], args.cache, args.rebuild)
-    data = [g for _, g in df_all.groupby("run_id")]
+    # Load in stacks of CHUNK_SIZE files to reduce memory usage at one time
+    paths = sorted(args.data)
+    n_chunks = -(-len(paths) // CHUNK_SIZE)
+
+    # Build all chunk caches before the analysis starts
+    if args.cache is not None:
+        for k in range(n_chunks):
+            print(f"Caching chunk {k} / {n_chunks - 1}")
+            load_chunk(paths, args.cache, k, args.rebuild)
 
     pedestals = pd.read_csv(path_pedestals, header=1)
 
@@ -235,100 +241,112 @@ def main(args: list[str] | None = None):
     ch_counts = {}
     palette = plt.rcParams["axes.prop_cycle"].by_key()["color"]
     ch_adc = {}
-    voltage = data[0]["voltage"].iloc[0]
+    with open(paths[0]) as f:
+        voltage = json.loads(f.readline().lstrip("# "))["voltage"]
     delay = None
     sigma_t = None
 
-    for df_id, df in enumerate(data):
-        print(f"Df {df_id} / {len(data)-1}")
+    df_id = -1
+    for k in range(n_chunks):
+        print(f"Chunk {k} / {n_chunks - 1}")
+        # The cache pre-pass above already honoured --rebuild
+        df_all = load_chunk(paths, args.cache, k)
+        data = [g for _, g in df_all.groupby("run_id")]
+        del df_all
 
-        if df.empty:
-            print(f"Df {df_id} is empty!")
-            continue
+        for df in data:
+            df_id += 1
+            print(f"Df {df_id} / {len(paths) - 1}")
 
-        # Subtract pedestals
-        df = df.merge(pedestals[["channel", "pedestals"]], on="channel", how="left")
-        df["signal"] = df["adc"] - df["pedestals"]
-        # GET ERROR ON PEDESTAL AND INCLUDE IT!
-        if df.empty:
-            print(f"Df {df_id} is empty after pedestal subtraction!")
-            continue
-
-        # Remove empty and noisy channels
-        df["chip"] = df["channel"] // 128
-        df = remove_empty_channels(df)
-
-        # Subtract common mode
-        df = common_mode_subtraction(df, args.fast_common_mode)
-
-        # Chose a time window (one sigma from mean)
-        # We only need to do this once, unless we change
-        # the voltage during the scan!
-        if delay == None:
-            d, st = get_delay(df, plotdir)
-            if d == None:
+            if df.empty:
+                print(f"Df {df_id} is empty!")
                 continue
-            delay = d
-            sigma_t = st
-        print(f"Delay = {delay} and sigma_t = {sigma_t}")
 
-        df = df[abs(df["time"] - delay) < sigma_t]
-        if df.empty:
-            print(f"Df {df_id} is empty after time cuts!")
-            continue
+            # Subtract pedestals
+            df = df.merge(pedestals[["channel", "pedestals"]], on="channel", how="left")
+            df["signal"] = df["adc"] - df["pedestals"]
+            # GET ERROR ON PEDESTAL AND INCLUDE IT!
+            if df.empty:
+                print(f"Df {df_id} is empty after pedestal subtraction!")
+                continue
 
-        # Region of interest
-        ch_min = 80
-        ch_max = 110
-        channels_mask = (df["channel"] > ch_min) & (df["channel"] < ch_max)
-        df = df[channels_mask]
-        if df.empty:
-            print(f"Df {df_id} is empty after channel selection!")
-            continue
+            # Remove empty and noisy channels
+            df["chip"] = df["channel"] // 128
+            df = remove_empty_channels(df)
 
-        z = df["z"].iloc[0]
-        x = df["x"].iloc[0]
+            # Subtract common mode
+            df = common_mode_subtraction(df, args.fast_common_mode)
 
-        # Plot adcs individually
-        if True and df_id < 10:
-            fig, ax = plt.subplots(1,1)
-            df = df.sort_values("run", ascending=True)
-            ax.plot(df["channel"], df["signal"], 
-                'o', ms=2, color=SNS_DEEP[9], alpha=ALPHA)
-            ax.set_title(f"alpha {ALPHA}")
-            ax.set_xlabel("Channel")
-            ax.set_ylabel("ADC")
-            fig.savefig(subdir / f"motor_scan_adc{df_id}.png", dpi=150)
-            plt.close(fig)
+            # Chose a time window (one sigma from mean)
+            # We only need to do this once, unless we change
+            # the voltage during the scan!
+            if delay == None:
+                d, st = get_delay(df, plotdir)
+                if d == None:
+                    continue
+                delay = d
+                sigma_t = st
+            print(f"Delay = {delay} and sigma_t = {sigma_t}")
 
-        ch1_adc = df[df["channel"] == ch1]
-        ch2_adc = df[df["channel"] == ch2]
-        if z not in ch_adc:
-            ch_adc.setdefault(z, {ch1: {}, ch2: {}})
-        ch_adc[z][ch1][x] = ch1_adc["signal"].mean()
-        ch_adc[z][ch2][x] = ch2_adc["signal"].mean()
+            df = df[abs(df["time"] - delay) < sigma_t]
+            if df.empty:
+                print(f"Df {df_id} is empty after time cuts!")
+                continue
 
-        # Extract hits
-        hit_df = df[df["signal"].abs() > HIT_THRESHOLD]
-        hits = (hit_df["signal"] != 0).groupby(hit_df["channel"]).sum()
-        if (hits.values.size) == 0:
-            print(f"Df {df_id} had zero hits...")
-            continue
+            # Region of interest
+            ch_min = 80
+            ch_max = 110
+            channels_mask = (df["channel"] > ch_min) & (df["channel"] < ch_max)
+            df = df[channels_mask]
+            if df.empty:
+                print(f"Df {df_id} is empty after channel selection!")
+                continue
 
-        color = palette[df_id % len(palette)]
-        ax_hits.stairs(
-            hits.values, np.append(hits.index, hits.index[-1] + 1) - 0.5, 
-            color=color)
+            z = df["z"].iloc[0]
+            x = df["x"].iloc[0]
 
-        if z not in hit_df:
-            mean_channel_hits.setdefault(z, {})[x] = np.average(hits.index, weights=hits.values)
-        else:
-            mean_channel_hits[z][x] = (np.average(hits.index, weights=hits.values))
-        # Count hits in certain channels, normalized by amount of hits
-        if z not in ch_counts:
-            ch_counts.setdefault(z, {ch1: [], ch2: []})
-        ch_counts[z][ch1].append(hits.get(ch1, 0) / hits.size)
-        ch_counts[z][ch2].append(hits.get(ch2, 0) / hits.size)
+            # Plot adcs individually
+            if True and df_id < 10:
+                fig, ax = plt.subplots(1,1)
+                df = df.sort_values("run", ascending=True)
+                ax.plot(df["channel"], df["signal"], 
+                    'o', ms=2, color=SNS_DEEP[9], alpha=ALPHA)
+                ax.set_title(f"alpha {ALPHA}")
+                ax.set_xlabel("Channel")
+                ax.set_ylabel("ADC")
+                fig.savefig(subdir / f"motor_scan_adc{df_id}.png", dpi=150)
+                plt.close(fig)
+
+            ch1_adc = df[df["channel"] == ch1]
+            ch2_adc = df[df["channel"] == ch2]
+            if z not in ch_adc:
+                ch_adc.setdefault(z, {ch1: {}, ch2: {}})
+            ch_adc[z][ch1][x] = ch1_adc["signal"].mean()
+            ch_adc[z][ch2][x] = ch2_adc["signal"].mean()
+
+            # Extract hits
+            hit_df = df[df["signal"].abs() > HIT_THRESHOLD]
+            hits = (hit_df["signal"] != 0).groupby(hit_df["channel"]).sum()
+            if (hits.values.size) == 0:
+                print(f"Df {df_id} had zero hits...")
+                continue
+
+            color = palette[df_id % len(palette)]
+            ax_hits.stairs(
+                hits.values, np.append(hits.index, hits.index[-1] + 1) - 0.5, 
+                color=color)
+
+            if z not in hit_df:
+                mean_channel_hits.setdefault(z, {})[x] = np.average(hits.index, weights=hits.values)
+            else:
+                mean_channel_hits[z][x] = (np.average(hits.index, weights=hits.values))
+            # Count hits in certain channels, normalized by amount of hits
+            if z not in ch_counts:
+                ch_counts.setdefault(z, {ch1: [], ch2: []})
+            ch_counts[z][ch1].append(hits.get(ch1, 0) / hits.size)
+            ch_counts[z][ch2].append(hits.get(ch2, 0) / hits.size)
+
+        del data
 
     print("Saving plots...")
 
