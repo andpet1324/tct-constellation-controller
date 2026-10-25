@@ -19,11 +19,6 @@ dependencies = [
 ]
 
 [project.scripts]
-tct-motor-scan = "tct.scans.motor_scan:main"
-tct-bias-scan = "tct.scans.bias_scan:main"
-tct-focus-scan = "tct.scans.focus_scan:main"
-tct-calibrate = "tct.scans.calibrate:main"
-tct-manual = "tct.scans.manual_translation:main"
 tct-monitor = "tct.monitor:main"
 tct-menu = "tct.menu:main"
 

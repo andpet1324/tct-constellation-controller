@@ -177,8 +177,12 @@ class Monitor(StandaloneListener):
         ch = pedestals_df["channel"]
 
         plt.ion()
+        # ADC
         fig, ax = plt.subplots(1,1)
+        # HITS
         fig_hits, ax_hits = plt.subplots(1,1)
+        # HITS IN TIME
+        fig_time, ax_time = plt.subplots(1,1) 
         plt.show(block=False)
         plt.pause(0.1)
 
@@ -190,8 +194,13 @@ class Monitor(StandaloneListener):
         ax_hits.set_xlabel("Channel")
         ax_hits.set_ylabel("# Hits")
 
+        ax_time.grid(True)
+        ax_time.set_xlabel("Time [ns]")
+        ax_time.set_ylabel("# Hits")
+
         lines: dict[int, dict[str, any]] = {}
         lines_hits: dict[int, dict[str, any]] = {}
+        lines_time: dict[int, dict[str, any]] = {}
 
         count = 0
         try:
@@ -211,6 +220,10 @@ class Monitor(StandaloneListener):
                                 adc = run.adc(chip)
                                 times = run.times()
 
+                                diff = adc - pedestals
+                                mask = numpy.abs(diff) >= hit_threshold
+                                hits_time = times[numpy.nonzero(mask)[0]]
+
                                 time_mask = numpy.abs(times - delay) < DELAY_INTERVAL
                                 if not time_mask.any():
                                     count += 1
@@ -229,9 +242,9 @@ class Monitor(StandaloneListener):
                                     ax.set_xlim(0, run.n_chips * len(channels))
                                     ax_hits.set_xlim(0, run.n_chips * len(channels))
 
-                                adc = adc[time_mask]
+                                adc_tcut = adc[time_mask]
                                 
-                                diff = adc - pedestals
+                                diff = adc_tcut - pedestals
                                 mask = numpy.abs(diff) > hit_threshold
                                 hits = numpy.count_nonzero(mask, axis=0)
 
@@ -245,14 +258,19 @@ class Monitor(StandaloneListener):
                                     lines_hits[chip] = {
                                         "hits": hhits
                                     }
+                                if chip not in lines_time:
+                                    htime = ax_time.stairs([0], [0, 1], color="#BF3535")
+                                    lines_time[chip] = {
+                                        "hits": htime
+                                    }
 
-                                n_ev, n_ch = adc.shape
+                                n_ev, n_ch = adc_tcut.shape
                                 x = chip_ch
 
                                 X = numpy.full((n_ev, n_ch + 1), numpy.nan)
                                 Y = numpy.full((n_ev, n_ch + 1), numpy.nan)
                                 X[:, :n_ch] = x
-                                Y[:, :n_ch] = adc
+                                Y[:, :n_ch] = adc_tcut
 
                                 lines[chip]["adc"].set_data(X.ravel(), Y.ravel())
 
@@ -263,13 +281,20 @@ class Monitor(StandaloneListener):
                                 ax.set_title(f"{n_ev} events")
                                 ax_hits.set_title(f"{n_ev} events, {hit_threshold} hit threshold, {delay} delay")
 
+                                # hits per timestamp
+                                edges = numpy.arange(0, 101) - 0.5
+                                counts, _ = numpy.histogram(hits_time, bins=edges)
+                                lines_time[chip]["hits"].set_data(values=counts, edges=edges)
 
                             ax.relim()
                             ax.autoscale_view()
                             ax_hits.relim()
                             ax_hits.autoscale_view()
+                            ax_time.relim()
+                            ax_time.autoscale_view()
                             fig.canvas.draw_idle()
                             fig_hits.canvas.draw_idle()
+                            fig_time.canvas.draw_idle()
                 plt.pause(interval)
                 count += 1
         except KeyboardInterrupt:
