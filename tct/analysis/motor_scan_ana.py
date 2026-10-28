@@ -18,7 +18,17 @@ from tqdm import tqdm
 SNS_DEEP = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3",
             "#937860", "#DA8BC3", "#8C8C8C", "#CCB974", "#64B5CD"]
 ALPHA = 1
-HIT_THRESHOLD = 50
+HIT_THRESHOLD = 7
+TIME_THRESHOLD = 15
+BINS = 100
+EMPTY_CHANNELS = [0, 63, 64, 127, 128, 191, 192, 256]
+ALLOWANCE = 5
+NOISE_THRESHOLD = 10
+CHMIN = 80
+CHMAX = 110
+PLOTCHANNEL = 1
+CH1 = 96
+CH2 = 97
 
 def load_data(paths, cache: pathlib.Path | None, chunk: int, rebuild: bool = False) -> pd.DataFrame:
     if (cache is not None and cache.exists() and not rebuild
@@ -89,7 +99,6 @@ def polynomial(x, a, b, c):
     return a*x**2 + b*x + c
 
 
-BINS = 100
 def common_mode_subtraction(df: pd.DataFrame, fast: bool = False) -> pd.DataFrame:
     """
     Takes a pedestal subtracted df and applies common mode subtraction
@@ -131,10 +140,8 @@ def common_mode_subtraction(df: pd.DataFrame, fast: bool = False) -> pd.DataFram
     df["signal"] = df["signal"] - df["shift"]
     return df
 
-EMPTY_CHANNELS = [0, 63, 64, 127, 128, 191, 192, 256]
-ALLOWANCE = 4
-THRESHOLD = 25
-def remove_noisy_channels(df: pd.DataFrame, allowance: int = ALLOWANCE, threshold: float = THRESHOLD) -> pd.DataFrame:
+
+def remove_noisy_channels(df: pd.DataFrame, allowance: int = ALLOWANCE, threshold: float = NOISE_THRESHOLD) -> pd.DataFrame:
     """
         Removes the very noisy channels. We only allow removal of 
         channels close to the empty channels to not remove the signal
@@ -170,8 +177,8 @@ def get_delay(df: pd.DataFrame, plotdir: pathlib.Path) -> tuple[float, float]:
     """
     t = df["time"].to_numpy()
     s = df["signal"].to_numpy()
-    pos = s >= HIT_THRESHOLD
-    neg = s <= -HIT_THRESHOLD
+    pos = s >= TIME_THRESHOLD
+    neg = s <= -TIME_THRESHOLD
     edges = np.histogram_bin_edges(t[pos | neg], bins=100)
     counts_pos, _ = np.histogram(t[pos], bins=edges)
     counts_neg, _ = np.histogram(t[neg], bins=edges)
@@ -188,8 +195,10 @@ def get_delay(df: pd.DataFrame, plotdir: pathlib.Path) -> tuple[float, float]:
             popt, pcov = curve_fit(gaussian, centers, counts_neg, p0=p0)
             if abs(popt[0]) < counts_neg.max() / 2:
                 raise ValueError("Fit amplitude too low!")
-            if abs(popt[1] - t[argmax]) > 10:
+            elif abs(popt[1] - t[argmax]) > 10:
                 raise ValueError("Fit mean not centered!")
+            elif abs(popt[2] < 5):
+                popt[2] = 5.0
     except (RuntimeError, RuntimeWarning, OptimizeWarning, ValueError) as err:
         tqdm.write(f"Fit failed with {err}")
         return (None, None)
@@ -202,15 +211,19 @@ def get_delay(df: pd.DataFrame, plotdir: pathlib.Path) -> tuple[float, float]:
         xl, -gaussian(xl, *popt), 
         label=f"Fit: ${popt[0]:.2f} * exp(-(x-{popt[1]:.2f})^2/(2*{popt[2]:.2f}^2))$")
     ax.set_xlabel("Time [ns]")
-    ax.set_ylabel("Signal [ADC]")
+    ax.set_ylabel("# Hits")
     ax.legend()
-    ax.set_title(f"{HIT_THRESHOLD} ADC hit threshold, {df["voltage"].iloc[0]} V")
+    ax.set_title(f"{TIME_THRESHOLD} hit threshold, {df["voltage"].iloc[0]} V")
     fig.savefig(plotdir / f"signal_in_time.png", dpi=150)
     return (popt[1], popt[2])
 
-CHMIN = 80
-CHMAX = 110
-PLOTCHANNEL = 5
+
+def cluster_sizes(channels, max_gap = 1):
+    ch = np.unique(channels)
+    edges = np.flatnonzero(np.diff(ch) > max_gap) + 1
+    return np.diff(np.r_[0, edges, ch.size])
+
+
 def main(args: list[str] | None = None):
     parser = argparse.ArgumentParser(description="Motor scan analyser")
     parser.add_argument("data", type=pathlib.Path, nargs='+', help="Data file directory")
@@ -254,19 +267,44 @@ def main(args: list[str] | None = None):
 
     # Declare variables
     mean_channel_hits = {}
-    ch1 = 96
-    ch2 = 97
+    ch1 = CH1
+    ch2 = CH2
     ch_counts = {}
     ch_adc = {}
     delay = None
     sigma_t = None
     count_plots = 0
-    ch_charge = {ch1: {"x": [], "q": []}, ch2: {"x": [], "q": []}}
+    clusters = {}
 
     # Here I assume the voltage is constant for the whole dataset
     # Would not work with a bias scan
     with open(paths[0]) as f:
         voltage = json.loads(f.readline().lstrip("# "))["voltage"]
+
+    # First we retrieve the delay parameter
+    print("Getting delay parameter...")
+    for k in range(n_chunks):
+        # The cache pre-pass above already honoured --rebuild
+        df_all = load_chunk(paths, args.cache, k)
+        data = [g for _, g in df_all.groupby("run_id")]
+        del df_all
+        for df in data:
+            df = df.merge(pedestals[["channel", "pedestals"]], on="channel", how="left")
+            df["signal"] = df["adc"] - df["pedestals"]
+            df["chip"] = df["channel"] // 128
+            df = remove_empty_channels(df)
+            df = common_mode_subtraction(df, args.fast_common_mode)
+            if delay == None:
+                d, st = get_delay(df, plotdir)
+                if d == None:
+                    continue
+                delay = np.abs(d)
+                sigma_t = np.abs(st)
+                tqdm.write(f"Delay = {delay} and sigma_t = {sigma_t}")
+                break
+        del data
+        if delay != None:
+            break
 
     # Loop through the data
     progress_bar = tqdm(
@@ -284,13 +322,18 @@ def main(args: list[str] | None = None):
         for df in data:
             df_id += 1
             progress_bar.update(1)
+            df["noise"] = df.groupby("channel")["adc"].transform("std")
 
             if df_id == PLOTCHANNEL:
-                figc, axc = plt.subplots(1,1)
-                axc.plot(df["channel"], df["adc"], 'o', ms=2)
-                axc.set_xlabel("Channel")
-                axc.set_ylabel("ADC")
-                axc.set_title("Raw data")
+                figc, axc = plt.subplots(2,1, gridspec_kw={'height_ratios': [3, 1]})
+                axc[0].plot(df["channel"], df["adc"], 'o', ms=2)
+                axc[1].plot(df["channel"], df["noise"], '-')
+                axc[0].set_ylabel("ADC")
+                axc[1].set_ylabel("Noise")
+                axc[1].set_xlabel("Channel")
+                axc[0].set_title("Raw data")
+                for ax in axc:
+                    ax.grid(axis="x")
                 figc.savefig(subdir / "1_raw_adc.png", dpi=150)
 
             if df.empty:
@@ -303,13 +346,18 @@ def main(args: list[str] | None = None):
             if df.empty:
                 tqdm.write(f"Df {df_id} is empty after pedestal subtraction!")
                 continue
+            df["noise"] = df.groupby("channel")["signal"].transform("std")
 
             if df_id == PLOTCHANNEL:
-                figc, axc = plt.subplots(1,1)
-                axc.plot(df["channel"], df["signal"], 'o', ms=2)
-                axc.set_xlabel("Channel")
-                axc.set_ylabel("ADC")
-                axc.set_title("Pedestal subtraction")
+                figc, axc = plt.subplots(2,1, gridspec_kw={'height_ratios': [3, 1]})
+                axc[0].plot(df["channel"], df["signal"], 'o', ms=2)
+                axc[1].plot(df["channel"], df["noise"], '-')
+                axc[0].set_ylabel("ADC")
+                axc[1].set_ylabel("Noise")
+                axc[1].set_xlabel("Channel")
+                for ax in axc:
+                    ax.grid(axis="x")
+                axc[0].set_title("Pedestal subtraction")
                 figc.savefig(subdir / "2_pedestal_sub.png", dpi=150)
 
             # Remove empty and noisy channels
@@ -317,32 +365,33 @@ def main(args: list[str] | None = None):
             df = remove_empty_channels(df)
 
             if df_id == PLOTCHANNEL:
-                figc, axc = plt.subplots(1,1)
-                axc.plot(df["channel"], df["signal"], 'o', ms=2)
-                axc.set_xlabel("Channel")
-                axc.set_ylabel("ADC")
-                axc.set_title("Noisy channel subtraction")
+                figc, axc = plt.subplots(2,1, gridspec_kw={'height_ratios': [3, 1]})
+                axc[0].plot(df["channel"], df["signal"], 'o', ms=2)
+                axc[1].plot(df["channel"], df["noise"], '-')
+                axc[0].set_ylabel("ADC")
+                axc[1].set_ylabel("Noise")
+                axc[1].set_xlabel("Channel")
+                for ax in axc:
+                    ax.grid(axis="x")
+                axc[0].set_title("Noisy channel subtraction")
                 figc.savefig(subdir / "3_noisy_channels.png", dpi=150)
 
             # Subtract common mode
             df = common_mode_subtraction(df, args.fast_common_mode)
+            # Important to recalculate noise after correction
+            df["noise"] = df.groupby("channel")["signal"].transform("std")
 
             if df_id == PLOTCHANNEL:
-                figc, axc = plt.subplots(1,1)
-                axc.plot(df["channel"], df["signal"], 'o', ms=2)
-                axc.set_xlabel("Channel")
-                axc.set_ylabel("ADC")
-                axc.set_title("Common mode subtraction")
+                figc, axc = plt.subplots(2,1, gridspec_kw={'height_ratios': [3, 1]})
+                axc[0].plot(df["channel"], df["signal"], 'o', ms=2)
+                axc[1].plot(df["channel"], df["noise"], '-')
+                axc[0].set_ylabel("ADC")
+                axc[1].set_ylabel("Noise")
+                axc[1].set_xlabel("Channel")
+                for ax in axc:
+                    ax.grid(axis="x")
+                axc[0].set_title("Common mode subtraction")
                 figc.savefig(subdir / "4_common_mode.png", dpi=150)
-
-            # Get delay parameter
-            if delay == None:
-                d, st = get_delay(df, plotdir)
-                if d == None:
-                    continue
-                delay = np.abs(d)
-                sigma_t = np.abs(st)
-                tqdm.write(f"Delay = {delay} and sigma_t = {sigma_t}")
 
             # Chose a time window (one stdev)
             df = df[abs(df["time"] - delay) < sigma_t]
@@ -351,11 +400,15 @@ def main(args: list[str] | None = None):
                 continue
 
             if df_id == PLOTCHANNEL:
-                figc, axc = plt.subplots(1,1)
-                axc.plot(df["channel"], df["signal"], 'o', ms=2)
-                axc.set_xlabel("Channel")
-                axc.set_ylabel("ADC")
-                axc.set_title("Time cuts")
+                figc, axc = plt.subplots(2,1, gridspec_kw={'height_ratios': [3, 1]})
+                axc[0].plot(df["channel"], df["signal"], 'o', ms=2)
+                axc[1].plot(df["channel"], df["noise"], '-')
+                axc[0].set_ylabel("ADC")
+                axc[1].set_ylabel("Noise")
+                axc[1].set_xlabel("Channel")
+                for ax in axc:
+                    ax.grid(axis="x")
+                axc[0].set_title("Time cuts")
                 figc.savefig(subdir / "5_time_cuts.png", dpi=150)
 
             # Region of interest
@@ -368,25 +421,33 @@ def main(args: list[str] | None = None):
                 continue
 
             if df_id == PLOTCHANNEL:
-                figc, axc = plt.subplots(1,1)
-                axc.plot(df["channel"], df["signal"], 'o', ms=2)
-                axc.set_xlabel("Channel")
-                axc.set_ylabel("ADC")
-                axc.set_title("Channel cuts")
+                figc, axc = plt.subplots(2,1, gridspec_kw={'height_ratios': [3, 1]})
+                axc[0].plot(df["channel"], df["signal"], 'o', ms=2)
+                axc[1].plot(df["channel"], df["noise"], '-')
+                axc[0].set_ylabel("ADC")
+                axc[1].set_ylabel("Noise")
+                axc[1].set_xlabel("Channel")
+                for ax in axc:
+                    ax.grid(axis="x")
+                axc[0].set_title("Channel cuts")
                 figc.savefig(subdir / "6_channel_cuts.png", dpi=150)
 
             # Current position
             z = df["z"].iloc[0]
             x = df["x"].iloc[0]
 
+            # if abs(z - 30.4) > 0.05:
+            #     continue
+
             # Plot adcs individually
-            if count_plots < 1000 and abs(z - 31.2) < 0.05:
+            # and abs(z - 31.2) < 0.05
+            if count_plots < 1:
                 fig, ax = plt.subplots(1,1)
                 df = df.sort_values(["run", "channel"], ascending=[True,True])
                 ax.errorbar(
                     df["channel"], df.groupby("channel")["signal"].transform("mean"), 
                     yerr=df["signal"].std(), ls="",
-                    marker="o", ms=4, color=SNS_DEEP[9])
+                    marker="o", ms=4)
                 ax.set_title(f"{HIT_THRESHOLD} ADC hit threshold, z = {z:.3f}, x = {x:.3f}")
                 ax.set_xlabel("Channel")
                 ax.set_ylabel("ADC")
@@ -415,63 +476,42 @@ def main(args: list[str] | None = None):
                 hits.values, np.append(hits.index, hits.index[-1] + 1) - 0.5, 
                 color=color)
 
+            # Clusters
+            sizes = hit_df.groupby("run")["channel"].apply(cluster_sizes)
+            all_sizes = np.concatenate(sizes.values)
+            clusters.setdefault(z, {})[x] = all_sizes.mean()
+
             # Mean hits for select channels, in x,z grid
-            if z not in hit_df:
-                mean_channel_hits.setdefault(z, {})[x] = np.average(hits.index, weights=hits.values)
-            else:
-                mean_channel_hits[z][x] = (np.average(hits.index, weights=hits.values))
+            mean_channel_hits.setdefault(z, {})[x] = np.average(hits.index, weights=hits.values)
 
             # Count hits in certain channels, normalized by amount of hits
             if z not in ch_counts:
                 ch_counts.setdefault(z, {ch1: [], ch2: []})
             ch_counts[z][ch1].append(hits.get(ch1, 0) / hits.size)
             ch_counts[z][ch2].append(hits.get(ch2, 0) / hits.size)
-
-            # Normalized charge vs x (eta-function)
-            if abs(z - 31.2) < 0.05:
-                df_chs = df[(df["channel"] == ch1) | (df["channel"] == ch2)]
-                tot_Q = df_chs["signal"].sum()
-                for ch in [ch1, ch2]:
-                    ch_charge[ch]["x"].append(x)
-                    ch_charge[ch]["q"].append(df_chs[df_chs["channel"] == ch]["signal"].sum() / tot_Q)
                     
         del data
 
     del(progress_bar)
     print("Saving plots...")
-
-    # ETA function
-    fig_eta, ax_eta = plt.subplots(1,1)
-    for ch, ch_df in ch_charge.items():
-        x = np.array(ch_df["x"], dtype=float)
-        q = np.array(ch_df["q"], dtype=float) * 100
-        order = np.argsort(x)
-        ax_eta.plot(x[order], q[order], 'o-', ms=3, label=f"ch {ch}")
-
-    ax_eta.axvline(6.830, color="k", ls="--", lw=1, label="ch 96 center")
-    ax_eta.axvline(6.895, color="k", ls="--", lw=1, label="ch 97 center")
-    ax_eta.legend()
-    ax_eta.set_title(f"{voltage} V")
-    ax_eta.set_xlabel("Position in x [mm]")
-    ax_eta.set_ylabel("Charge [%]")
-    fig_eta.savefig(plotdir / "eta_scan.png", dpi=150)
     
     # Mean signal over two select channels
     fig_adc, ax_adc = plt.subplots(1,1)
     fig_zs, ax_zs = plt.subplots(1,1)
     zs = []
     sigmas = {ch1: [], ch2: []}
-    integrals = {ch1: [], ch2: []}
-    for i, (z, zf) in enumerate(ch_adc.items()):
-        if abs(z - 31.2) > 0.05:
-            continue
+    eta_means = {}
+    for z, zf in ch_adc.items():
+        fit_sigma = {}
         for ch_id, ch_df in zf.items():
             # Plot mean signal vs x [mm]
             ax_adc.plot(ch_df.keys(), ch_df.values(), label=f"z = {z:.2f}")
             # Fit signal and get the stdev
             keys = sorted(ch_df) # increasing x
             x = np.array(keys, dtype=float)
-            mean_adc = np.abs(np.array([ch_df[k] for k in keys], dtype=float))
+            mean_adc = np.array([ch_df[k] for k in keys], dtype=float)
+            eta_means.setdefault(ch_id, {}).update(dict(zip(keys, mean_adc)))
+            mean_adc = np.abs(mean_adc)
             argmax = np.argmax(mean_adc) # SIGNAL IS ABS SO MAX
             peak = mean_adc[argmax]
             base = np.median(mean_adc)
@@ -481,20 +521,32 @@ def main(args: list[str] | None = None):
                     warnings.simplefilter("error", RuntimeWarning)
                     warnings.simplefilter("error", OptimizeWarning)
                     popt, pcov = curve_fit(base_gaussian, x, mean_adc, p0=p0)
-                    integral_value, error = quad(base_gaussian(x, *popt), x.min(), x.max())
+                    fit_sigma[ch_id] = abs(popt[3])
             except (RuntimeError, RuntimeWarning, OptimizeWarning, ValueError) as err:
                 print(f"Fit failed with {err}")
                 continue
-            
-            integrals[ch_id].append(integral_value)
-            sigmas[ch_id].append(np.abs(popt[3]))
         # Avoid cases where one channel had a bad fit
-        if len(sigmas[ch1]) > len(sigmas[ch2]):
-            sigmas[ch1].pop()
-        if len(sigmas[ch2]) > len(sigmas[ch1]):
-            sigmas[ch2].pop()
-        if len(sigmas[ch1]) > len(zs) and len(sigmas[ch2]) > len(zs):
+        if len(fit_sigma) == 2:
             zs.append(z)
+            for ch in (ch1, ch2):
+                sigmas[ch].append(fit_sigma[ch])
+
+    # ETA function
+    fig_eta, ax_eta = plt.subplots(1,1)
+    x_eta = np.array(sorted(set(eta_means[ch1]) & set(eta_means[ch2])), dtype=float)
+    q1 = np.array([eta_means[ch1][k] for k in x_eta])
+    q2 = np.array([eta_means[ch2][k] for k in x_eta])
+    Q = q1 + q2
+    ax_eta.plot(x_eta, 100 * q1 / Q, 'o-', ms=3, color="C0", label=f"ch {ch1}")
+    ax_eta.plot(x_eta, 100 * q2 / Q, 'o-', ms=3, color="C1", label=f"ch {ch2}")
+    # ax_eta.axvline(6.80, color="k", ls="--", lw=1, label="ch 96 center")
+    # ax_eta.axvline(6.855, color="k", ls="--", lw=1, label="ch 97 center")
+    ax_eta.legend()
+    ax_eta.set_title(f"{voltage} V")
+    ax_eta.set_xlabel("Position in x [mm]")
+    ax_eta.set_ylabel("Charge [%]")
+    ax_eta.set_ylim(0,100)
+    fig_eta.savefig(plotdir / "eta_scan.png", dpi=150)
     
     for ch in [ch1,ch2]:
         color = next(colors)
@@ -511,18 +563,27 @@ def main(args: list[str] | None = None):
             print(f"Fit of sigmas failed with {err}")
         ax_zs.plot(zs, 1000 * np.array(sigmas[ch]), 'o', color=color, label=f"ch {ch}")
     ax_zs.legend()
-    ax_zs.set_title(f"{HIT_THRESHOLD} ADC hit threshold, {voltage} V")
+    ax_zs.set_title(f"{voltage} V")
     ax_zs.set_xlabel("Position in z [mm]")
     ax_zs.set_ylabel("σ in x [µm]")
-    ax_zs.set_ylim(0, 100)
     fig_zs.savefig(plotdir / "focus_scan.png", dpi=150)
 
     ax_adc.xaxis.set_minor_locator(tck.AutoMinorLocator())    
     #ax_adc.legend()
-    ax_adc.set_title(f"{HIT_THRESHOLD} ADC hit threshold, {voltage} V")
+    ax_adc.set_title(f"{voltage} V")
     ax_adc.set_xlabel("Position in x [mm]")
     ax_adc.set_ylabel("Mean ADC")
     fig_adc.savefig(plotdir / "two_channels_mean_adc.png", dpi=150)
+
+    # Cluster sizes
+    fig_cl, ax_cl = plt.subplots(1,1)
+    for z, z_df in clusters.items():
+        xs = sorted(z_df)
+        ax_cl.plot(xs, [z_df[k] for k in xs], "-o", ms=3, label=f"z = {z:.2f}")
+    ax_cl.set_title(f"{HIT_THRESHOLD} ADC hit threshold, {voltage} V")
+    ax_cl.set_xlabel("Position in x [mm]")
+    ax_cl.set_ylabel("Cluster size mean [channel]")
+    fig_cl.savefig(plotdir / "clusters.png", dpi=150)
 
     # Hits
     ax_hits.set_title(f"{HIT_THRESHOLD} ADC hit threshold, {voltage} V")
