@@ -28,6 +28,7 @@ def motor_scan(
     triggers: int,
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
+    voltages: tuple[int, int, int] | None = None
 ) -> None:
     """Take a run at every point of the x/y/z grid.
         We add 0.5 to every stop point to include it in the range
@@ -45,26 +46,39 @@ def motor_scan(
     ]
     if not points:
         raise ValueError("Scan ranges contain no points")
-    for index, position in enumerate(points, start=1):
-        ctrl.log.status(f"Point {index}/{len(points)}: {position}")
+    vrange = range(*voltages) if voltages is not None else [None]
+    for v_index, voltage in enumerate(vrange, start=1):
+        # Set HV
+        if voltage is not None:
+            ctrl.log.status(f"Voltage {v_index}/{len(vrange)}: {voltage}V")
+            reconfigure(ctrl, hv, {"voltage": voltage}, timeout=120)
 
-        reconfigure(ctrl, stage, {"position": position})
+        for index, position in enumerate(points, start=1):
+            # Change position
+            ctrl.log.status(f"Point {index}/{len(points)}: {position}")
+            reconfigure(ctrl, stage, {"position": position})
 
-        try:
-            run_id = run_identifier("motor_scan")
-            collected = ctrl.take_run(run_id, triggers)
+            try:
+                run_id = run_identifier("motor_scan")
+                collected = ctrl.take_run(run_id, triggers)
 
-            point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
+                point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
 
-            if csv_dir is not None:
-                try:
-                    with Run.from_run_id(run_id, data_dir, clear=True) as run:
-                        ctrl.log.status(f"Data written to {run.to_csv_adc(csv_dir, point)}")
-                except Exception as err:
-                    ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
-        except KeyboardInterrupt:
-            clear_h5((pathlib.Path(data_dir) / f"data_{run_id}.h5"))
-            return
+                if csv_dir is not None:
+                    try:
+                        with Run.from_run_id(run_id, data_dir, clear=True) as run:
+                            ctrl.log.status(f"Data written to {run.to_csv_adc(csv_dir, point)}")
+                    except Exception as err:
+                        ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
+            except KeyboardInterrupt:
+                if voltages is not None:
+                    ctrl.log.status(f"Setting voltage to {voltages[0]}V")
+                    reconfigure(ctrl, hv, {"voltage": voltages[0]}, timeout=120)
+                clear_h5((pathlib.Path(data_dir) / f"data_{run_id}.h5"))
+                return
+    if voltages is not None:
+        ctrl.log.status(f"Setting voltage to {voltages[0]}V")
+        reconfigure(ctrl, hv, {"voltage": voltages[0]}, timeout=120)
     return
 
 
@@ -74,6 +88,19 @@ def cmd_motor_scan(tgt: dict[str, any]) -> None:
     tgt["ctrl"].log.status(f"Stages currently at {initial_pos}")
 
     trgs = readline_int("Triggers", 1000)
+
+    scan_hv = readline_bool("Scan voltage range", False)
+    voltage = None
+    if scan_hv:
+        print("Before scanning make sure the leakage current is minimal at the extreme voltage!")
+        vi = readline_int("Starting voltage", -100)
+        vf = readline_int("Stopping voltage", -110)
+        vstep = readline_int("Voltage stepsize", 1)
+        if vstep == 0:
+            raise ValueError("Voltage stepsize must be non-zero")
+        vstep = abs(vstep)
+        vstep = vstep if vf >= vi else -vstep # Negative steps
+        voltage = (vi, vf + vstep, vstep) # Extra step to include last point
 
     xi = xf = initial_pos["x"]
     yi = yf = initial_pos["y"]
@@ -117,7 +144,8 @@ def cmd_motor_scan(tgt: dict[str, any]) -> None:
             (zi, zf, zstep), 
             trgs,
             data_dir, 
-            csv_dir
+            csv_dir,
+            voltage
         )
     except Exception as err:
         print(f"Motor scan interrupted with error: {err}")

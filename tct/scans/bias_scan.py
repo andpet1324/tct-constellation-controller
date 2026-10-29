@@ -47,8 +47,12 @@ def bias_scan(
 def cmd_bias_scan(tgt: dict[str, any]) -> None:
     trgs = readline_int("Triggers", 1000)
     vi = readline_int("Start voltage", 0)
-    vf = readline_int("Stop voltage", 100)
+    vf = readline_int("Stop voltage", -100)
     vstep = readline_int("Voltage steps", 5)
+    if vstep == 0:
+        raise ValueError("Voltage stepsize must be non-zero")
+    vstep = abs(vstep)
+    vstep = vstep if vf >= vi else -vstep # Negative steps
     voltages = [float(v) for v in range(vi, vf, vstep)]
     csv_dir = readline_dir("data directory for csv (default is none)", None)
     data_dir = data_directory(tgt["cfg"], tgt["Writer"]) if csv_dir else None
