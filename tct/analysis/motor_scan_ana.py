@@ -2,7 +2,6 @@ import pandas as pd
 import numpy as np
 from scipy.optimize import curve_fit
 from scipy.optimize import OptimizeWarning
-from scipy.integrate import quad
 import warnings
 import matplotlib.pyplot as plt
 import matplotlib.ticker as tck
@@ -15,17 +14,17 @@ import pyarrow.parquet as pq
 import pyarrow.compute as pc
 from tqdm import tqdm
 
-SNS_DEEP = ["#4C72B0", "#DD8452", "#55A868", "#C44E52", "#8172B3",
-            "#937860", "#DA8BC3", "#8C8C8C", "#CCB974", "#64B5CD"]
 ALPHA = 1
-HIT_THRESHOLD = 7
-TIME_THRESHOLD = 15
+TIME_THRESHOLD = 17
+HIT_THRESHOLD = 12
+
 BINS = 100
 EMPTY_CHANNELS = [0, 63, 64, 127, 128, 191, 192, 256]
 ALLOWANCE = 5
 NOISE_THRESHOLD = 10
 CHMIN = 80
 CHMAX = 110
+
 PLOTCHANNEL = 1
 CH1 = 96
 CH2 = 97
@@ -503,9 +502,11 @@ def main(args: list[str] | None = None):
     eta_means = {}
     for z, zf in ch_adc.items():
         fit_sigma = {}
+        mean_adcs = {z: {ch1: [], ch2: []}}
         for ch_id, ch_df in zf.items():
             # Plot mean signal vs x [mm]
-            ax_adc.plot(ch_df.keys(), ch_df.values(), label=f"z = {z:.2f}")
+            # ax_adc.plot(ch_df.keys(), ch_df.values(), label=f"z = {z:.2f}")
+            mean_adcs[z][ch_id].append(ch_df.values())
             # Fit signal and get the stdev
             keys = sorted(ch_df) # increasing x
             x = np.array(keys, dtype=float)
@@ -525,6 +526,9 @@ def main(args: list[str] | None = None):
             except (RuntimeError, RuntimeWarning, OptimizeWarning, ValueError) as err:
                 print(f"Fit failed with {err}")
                 continue
+        for i, ch in enumerate([ch1, ch2]):
+            for l in mean_adcs[z][ch]:
+                ax_adc.plot(x, l, color=f"C{i}", label=f"ch {ch}")
         # Avoid cases where one channel had a bad fit
         if len(fit_sigma) == 2:
             zs.append(z)
