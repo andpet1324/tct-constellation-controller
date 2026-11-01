@@ -11,11 +11,10 @@ version = "0.1.0"
 description = "Scans and analysis for the TCT setup, driving Constellation satellites"
 requires-python = ">=3.11"
 dependencies = [
-    "ConstellationDAQ[cli,hdf5]",
+    "ConstellationDAQ[cli, hdf5]",
     "numpy",
     "h5py",
-    "scipy",
-    "matplotlib",
+    "pandas",
 ]
 
 [project.scripts]

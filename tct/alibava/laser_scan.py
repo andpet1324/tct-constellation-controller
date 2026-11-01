@@ -1,9 +1,10 @@
 import pathlib
+from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
+from .h5_alibava import Run
 from ..controller import TCTController
-from ..analysis.h5 import Run
 from ..prompts import readline_int, readline_dir, readline_bool
 from ..scans.common import reconfigure, run_identifier, data_directory, get_position, read_hv
 
@@ -16,9 +17,10 @@ def laser_scan(
     triggers: int,
     data_dir: pathlib.Path = None,
     csv_dir: pathlib.Path = None,
-    results: list[dict[str, any]] | None = [],
+    results: list[dict[str, Any]] | None = [],
 ) -> None:
-    """Take data in RADSOURCE mode for an amount of triggers
+    """
+        Take data in RADSOURCE mode for an amount of triggers
         The TCT laser is a RADSOURCE to Alibava. Don't get it
         confused with the LASER mode which relies on internal 
         Alibava pulsing (I think).
@@ -42,15 +44,12 @@ def laser_scan(
     return results
 
     
-def cmd_laser_scan(tgt: dict[str, any]) -> None:
-    """
-    Do a RADSOURCE run in one position and save the data to csv for analysis
-    """
+def cmd_laser_scan(tgt: dict[str, Any]) -> None:
+    """Do a RADSOURCE run in one position and save the data to csv for analysis"""
     if (readline_bool("Did you align the laser on the sensor?", True)):
         triggers = readline_int("Triggers per run", 10000)
         csv_dir = readline_dir("data directory for csv")
         data_dir = data_directory(tgt["cfg"], tgt["writer"])
-
         try:
             laser_scan(
                 tgt["ctrl"], tgt["daq"], tgt["stage"], tgt["hv"], 

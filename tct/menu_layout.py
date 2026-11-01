@@ -20,17 +20,21 @@ MENU = {
         "GET-POSITION": ("get position of the stages", read_position),
     }),
     "SCANS": ("TCT scans menu", {
+        "PEDESTAL": ("pedestal run", cmd_pedestal_scan),
         "MANUAL": ("translate stages manually and record data", cmd_manual_translation),
         "MOTOR-SCAN": ("scan a spatial range", cmd_motor_scan),
         "BIAS-SCAN": ("scan a bias range in one position", cmd_bias_scan),
         "CALIBRATE": ("calibrate scope or stages", cmd_calibrate),
-        "PEDESTAL": ("pedestal run", cmd_pedestal_scan),
     }),
     "ALIBAVA": ("Alibava scans menu", {
-        "RUN-PEDESTALS": ("runs a continous pedestal scan meant for monitoring", cmd_run_pedestals),
-        "RUN-ADC": ("runs a continous laser scan mean for monitoring", cmd_run_adc),
+        "CONTINOUS-PEDESTALS": ("runs a continous pedestal scan for monitoring", cmd_run_pedestals),
+        "CONTINOUS-ADC": ("runs a continous laser scan for monitoring", cmd_run_adc),
         "LATENCY-SCAN": ("latency parameter scan to find the laser signal", cmd_latency_scan),
         "LASER-SCAN": ("laser scan with adcs per channel to csv", cmd_laser_scan),
-        "FOCUS-FINDER": ("scans hits over x-z range to find the laser focus", cmd_focus_finder)
+        "FOCUS-FINDER": ("scans hits over x-z range to find the laser focus NOT WORKING!!", cmd_focus_finder)
+    }),
+    "LECROY": ("LeCroy scans menu", {
+        "RUN-PEDESTALS": ("runs a continous pedestal scan for monitoring", cmd_run_pedestals),
+        "RUN-ADC": ("runs a continous laser scan for monitoring", cmd_run_adc),
     }),
 }

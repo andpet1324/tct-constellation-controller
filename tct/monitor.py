@@ -20,7 +20,7 @@ from constellation.core.listener import StandaloneListener
 from constellation.core.monitoring import Metric
 from constellation.core.protocol.cscp1 import SatelliteState
 
-from .analysis.h5 import Run
+from .alibava.h5_alibava import Run
 from .menu import Menu
 from .prompts import readline_int, readline_float, readline_path, readline_bool
 
@@ -107,7 +107,7 @@ class Monitor(StandaloneListener):
 
         fig.canvas.mpl_connect("key_press_event", lambda event: self.reset() if event.key == "r" else None)
 
-        lines: dict[int, dict[str, any]] = {}
+        lines: dict[int, dict[str, Any]] = {}
         count = 0
         try:
             while plt.fignum_exists(fig.number):
@@ -198,9 +198,9 @@ class Monitor(StandaloneListener):
         ax_time.set_xlabel("Time [ns]")
         ax_time.set_ylabel("# Hits")
 
-        lines: dict[int, dict[str, any]] = {}
-        lines_hits: dict[int, dict[str, any]] = {}
-        lines_time: dict[int, dict[str, any]] = {}
+        lines: dict[int, dict[str, Any]] = {}
+        lines_hits: dict[int, dict[str, Any]] = {}
+        lines_time: dict[int, dict[str, Any]] = {}
 
         count = 0
         try:

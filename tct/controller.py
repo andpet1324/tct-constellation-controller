@@ -20,24 +20,26 @@ from constellation.core.protocol.cscp1 import SatelliteState
 
 
 class TCTController(ScriptableController, MonitoringListener):
-    """Controller which ends a run once enough triggers have been collected.
+    """
+    Controller which ends a run once enough triggers have been collected.
     The number of triggers is taken from the TRIG metric of the Alibava satellite, or NUM_TRIGGERS from LeCroySatellite.
     """
 
-    def __init__(self, *args: Any, daq: str, **kwargs: Any) -> None:
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
-        self._daq = daq
+        self._daq = None
         self._data_dir = None
         self._triggers_lock = threading.Lock()
         self._num_triggers = 0
         self._run_id = None
 
-        # Subscribe to the trigger counter of the 
-        if daq.upper() == "ALIBAVA":
+    def subscribe_metrics(self) -> None:
+        # Subscribe to the trigger counters
+        if self._daq.upper() == "ALIBAVA":
             print("Using STAT/TRIG metric!")
             self.set_topics(["STAT/TRIG"])
-        elif daq.upper() == "LECROY":
+        elif self._daq.upper() == "LECROY":
             self.set_topics(["STAT/NUM_TRIGGERS"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
@@ -48,7 +50,11 @@ class TCTController(ScriptableController, MonitoringListener):
     def set_data_dir(self, config_path: str, writer: str) -> None:
         cfg = load_config(config_path)
         self._data_dir = str(cfg.get_satellite_configuration(writer).get_path("output_directory"))
-    
+
+    def set_daq(self, daq: str) -> None:
+        self._daq = daq
+        self.subscribe_metrics()
+        
     @property
     def num_triggers(self) -> int:
         with self._triggers_lock:

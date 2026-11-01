@@ -2,14 +2,13 @@ from collections.abc import Callable
 import argparse
 import readline
 import pathlib
-readline.parse_and_bind("tab: complete")
-
-from constellation.core.controller_configuration import load_config
+import time
+from typing import Any
 
 from .controller import TCTController
-from .scans.common import add_common_arguments
 from .menu_layout import MENU
-from .menu_meta import SATELLITES
+
+readline.parse_and_bind("tab: complete")
 
 class Menu:
     def __init__(self, 
@@ -37,7 +36,7 @@ class Menu:
         self._lines[cmd.upper()] = (descr, func)
         return self
 
-    def print_help(self, tgt: dict[str, any]) -> None:
+    def print_help(self, tgt: dict[str, Any]) -> None:
         for name, (descr, _) in self._lines.items():
             print(f"{name:<12} {descr}")
 
@@ -48,20 +47,22 @@ class Menu:
             name = self._parent.path()
             return name + self._name + "/"
 
-    def path_print(self, tgt: dict[str, any]) -> None:
+    def path_print(self, tgt: dict[str, Any]) -> None:
         print(self.path())
 
-    def steer(self, tgt: dict[str, any]) -> None:
+    def steer(self, tgt: dict[str, Any]) -> None:
         while True:
             readline.set_completer(self._complete)
             try:
                 cmd = input(self.path() + " > ").strip().upper()
             except KeyboardInterrupt:
+                # ASK TO KEEP SATELLITES IN ORBIT
                 print("Exiting menu")
-                exit(0)
+                return
             if not cmd:
                 continue
             if cmd == "EXIT":
+                # ASK TO KEEP SATELLITES IN ORBIT
                 return
             elif cmd in self._lines:
                 _, func = self._lines[cmd]
@@ -77,7 +78,7 @@ class Menu:
         self.line(cmd, f"{descr} →", sub.steer)
         return sub
 
-    def load_subs(self, layout: dict[str, any]):
+    def load_subs(self, layout: dict[str, Any]):
         for top_cmd, (top_descr, top_func) in layout.items():
             if isinstance(top_func, dict):
                 sub = self.submenu(top_cmd, top_descr)
@@ -86,7 +87,7 @@ class Menu:
             else:
                 self.line(top_cmd, top_descr, top_func)
 
-def find_sat(satellites: dict, name: str) -> tuple[str, any] | tuple[None, None]:
+def find_sat(satellites: dict, name: str) -> tuple[str, Any] | tuple[None, None]:
     try:
         for k, v in satellites.items():
             if name.upper() in k.upper():
@@ -99,25 +100,27 @@ def find_sat(satellites: dict, name: str) -> tuple[str, any] | tuple[None, None]
 def main(args: list[str] | None = None):
     parser = argparse.ArgumentParser(description="TCT Menu")
     parser.add_argument("-c", "--config", required=True, type=pathlib.Path, default="tct.toml", help="Constellation configuration file")
-    parser.add_argument("-daq", "--daq", required=True, type=str, help="Provide the type of DAQ used. Options: Alibava, LeCroy")
     parser.add_argument("-g", "--group", required=True, help="Constellation group name")
     parser.add_argument("--manifest", type=pathlib.Path, help="Where to write the scan manifest (JSON)")
     add_common_arguments(parser)
     opts = parser.parse_args(args)
-    daq_name = opts.daq
 
-    ctrl = TCTController(opts.group, daq=daq_name)
-    satellite_ids = []
-    while True:
+    ctrl = TCTController(opts.group)
+    satellite_ids = [None, None, None, None]
+    while any(name is None for name in satellite_ids):
+        time.sleep(1) # Wait for satellites to connect
         satellites = ctrl.constellation.satellites
-        daq_id, daq = find_sat(satellites, daq_name)
+        for name in ["Alibava", "LeCroy"]:
+            daq_id, daq = find_sat(satellites, name)
+            if daq is not None:
+                break
         hv_id, hv = find_sat(satellites, "Keithley")
         writer_id, writer = find_sat(satellites, "H5DataWriter")
         stage_id, stage = find_sat(satellites, "Standa")
         satellite_ids = [daq_id, hv_id, writer_id, stage_id]
-        if all(name is not None for name in satellite_ids):
-            break
 
+    # CHECK IF SATELLITES ARE IN ORBIT ALREADY -> ASK FOR RE-INIT
+    ctrl.set_daq(daq)
     ctrl.bring_up(opts.config, satellite_ids)
     ctrl.set_data_dir(opts.config, writer_id)
 

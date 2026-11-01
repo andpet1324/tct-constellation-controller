@@ -2,7 +2,7 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Position scan: one run per stage position, replacing MotorScanWorker
+Position scan: one run per stage position
 """
 
 from typing import Any
@@ -12,7 +12,7 @@ from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
 from ..prompts import readline_int, readline_dir
-from ..analysis.h5 import Run
+from ..alibava.h5_alibava import Run
 from .common import read_hv, reconfigure, run_identifier, data_directory, get_position
 
 
@@ -25,10 +25,10 @@ def manual_translation(
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
 ) -> None:
-    """Move the stage to positions entered by the user and take a run at each.
-    """
-    ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
-    reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
+    """Move the stage to positions entered by the user and trigger."""
+    if daq.name.upper() == "ALIBAVA":
+        ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
+        reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
     position = get_position(ctrl, stage)
     ctrl.log.status(f"Stages currently at {position}")
@@ -68,7 +68,7 @@ def manual_translation(
     ctrl.log.status(f"Ended translation at position: {position}")
     return
 
-def cmd_manual_translation(tgt: dict[str, any]) -> None:
+def cmd_manual_translation(tgt: dict[str, Any]) -> None:
     trgs = readline_int("triggers", 1000)
     csv_dir = readline_dir("data directory for csv (default is none)", None)
     data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None

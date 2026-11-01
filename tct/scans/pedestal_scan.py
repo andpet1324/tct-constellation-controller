@@ -1,3 +1,10 @@
+"""
+SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+SPDX-License-Identifier: EUPL-1.2
+
+Position scan: one run per stage position
+               also includes bias scan option
+"""
 from typing import Any
 import pathlib
 
@@ -5,7 +12,7 @@ from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
 from ..prompts import readline_int, readline_dir
-from ..analysis.h5 import Run
+from ..alibava.h5_alibava import Run
 from .common import read_hv, reconfigure, run_identifier, data_directory, get_position
 
 
@@ -19,11 +26,10 @@ def pedestal_scan(
     data_dir: pathlib.Path | None = None,
     csv_dir: pathlib.Path | None = None,
 ) -> list[dict[str, Any]]:
-    """Take data in PEDESTAL mode for an amount of triggers
-    """
-
-    ctrl.log.status(f"Setting Alibava to PEDESTAL mode")
-    reconfigure(ctrl, daq, {"run_type": "PEDESTAL"})
+    """Take data in PEDESTAL mode for an amount of triggers"""
+    if daq.name.upper() == "ALIBAVA":
+        ctrl.log.status(f"Setting Alibava to PEDESTAL mode")
+        reconfigure(ctrl, daq, {"run_type": "PEDESTAL"})
 
     run_id = run_identifier("pedestal_scan")
     collected = ctrl.take_run(run_id, triggers)
@@ -40,7 +46,7 @@ def pedestal_scan(
 
     return results
 
-def cmd_pedestal_scan(tgt: dict[str, any]) -> None:
+def cmd_pedestal_scan(tgt: dict[str, Any]) -> None:
     trgs = readline_int("triggers", 1000)
     csv_dir = readline_dir("data directory for csv (default is none)", None)
     data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None

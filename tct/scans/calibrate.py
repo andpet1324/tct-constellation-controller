@@ -2,9 +2,9 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Instrument calibration: scope self-calibration and homing of the stage,
-replacing CalibrateInstrumentsWorker
+Instrument calibration: scope self-calibration and homing of the stages
 """
+from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
@@ -17,7 +17,8 @@ def calibrate(
         daq: SatelliteCommLink, 
         stage: SatelliteCommLink,
         run_scope: bool = True, 
-        run_stage: bool = True) -> None:
+        run_stage: bool = True
+) -> None:
     """Self-calibrate the scope and home the stage, raising if either fails. 0 Means it passed"""
     if run_scope:
         ctrl.log.status("Scope self-calibration...")
@@ -37,7 +38,7 @@ def calibrate(
         ctrl.log.status(response.msg)
 
 
-def cmd_calibrate(tgt: dict[str, any]) -> None:
+def cmd_calibrate(tgt: dict[str, Any]) -> None:
     print("Self-calibrate the scope and home the stage")
     scope = readline_bool("Calibrate the scope?", False)
     stage = readline_bool("Calibrate the stage?", False)

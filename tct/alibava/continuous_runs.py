@@ -1,6 +1,4 @@
-import pathlib
-import matplotlib.pyplot as plt
-import numpy
+from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
@@ -14,10 +12,7 @@ def run_pedestals(
     daq: SatelliteCommLink,
     triggers: int,
 ) -> None:
-    """
-        Take data in PEDESTAL mode for an amount of triggers
-    """
-
+    """Take data in PEDESTAL mode for an amount of triggers"""
     ctrl.log.status(f"Setting Alibava to PEDESTAL mode")
     reconfigure(ctrl, daq, {"run_type": "PEDESTAL"})
 
@@ -35,10 +30,7 @@ def run_adc(
     daq: SatelliteCommLink,
     triggers: int
 ) -> None:
-    """
-        Take data in RADSOURCE mode for an amount of triggers
-    """
-
+    """Take data in RADSOURCE mode for an amount of triggers"""
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
     reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
@@ -51,7 +43,7 @@ def run_adc(
     except KeyboardInterrupt:
         return
 
-def cmd_run_pedestals(tgt: dict[str, any]) -> None:
+def cmd_run_pedestals(tgt: dict[str, Any]) -> None:
     """Continously takes data for use with monitor pedestals"""
     triggers = readline_int("Triggers", 100)
     try:
@@ -62,7 +54,7 @@ def cmd_run_pedestals(tgt: dict[str, any]) -> None:
         print("Monitor pedestals ended")
         return
 
-def cmd_run_adc(tgt: dict[str, any]) -> None:
+def cmd_run_adc(tgt: dict[str, Any]) -> None:
     """Continously takes data for use with monitor of adc"""
     triggers = readline_int("Triggers", 100)
     try:

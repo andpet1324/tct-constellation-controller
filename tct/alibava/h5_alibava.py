@@ -2,66 +2,55 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Reading the HDF5 files written by the H5DataWriter satellite
+Reading the HDF5 files written by the H5DataWriter satellite,
+with Alibava DAQ
 """
 
 import os
 import json
 import pathlib
-from collections.abc import Iterator
-from typing import Any
-
 import h5py
 import numpy
 import pandas
+from collections.abc import Iterator
+from typing import Any
 
 CHANNELS = 128
-TDC_UNIT_NS = 100.0 # one TDC integer step, the 100 ns clock derived from the system clock
+TDC_UNIT_NS = 100.0
 
-# ADD RUNTYPE
 def decode_record(payload: numpy.ndarray) -> numpy.ndarray:
     """
         Extracts the ADC values per channel from the Alibava record
         Each record contains a data block of 256 words.
+        The data comes in pairs of two: (val1, val2)
+        The stored value by Alibava is uint16, meaning it has the max value of 256x256
+        which corresponds to (0,256) = 0*256 + 256*256. Therefore val1 is the least 
+        significant value. 
     """
+    return payload[0::2] + payload[1::2] * 256 # size 128
 
-    #
-    # The data comes in pairs of two:
-    #       (val1, val2)
-    # The stored value by Alibava is uint16, meaning it has the max value of 256x256
-    # which corresponds to (0,256) = 0*256 + 256*256. Therefore val1 is the least 
-    # significant value. 
-    #
-    adc = payload[0::2] + payload[1::2] * 256 # size 128
-
-    return adc
 
 def decode_header(payload: numpy.ndarray) -> numpy.ndarray:
     """
         Extracts the header data from the Alibava record
         Each record contains a data block of 64 words.
     """
+    return payload[0::2] + payload[1::2] * 64 # size 32
 
-    head = payload[0::2] + payload[1::2] * 64 # size 32
-
-    return head
 
 class Run:
-
-    """One run in an HDF5 file, giving access to the adc data.
     """
-
-    SAMPLE_FORMAT = "%.9g" # Ignore
-
-    def __init__(self, path: pathlib.Path | str, daq: str = "Alibava.DAQ", clear: bool = False) -> None:
+        One run in an HDF5 file, giving access to the adc data.
+    """
+    def __init__(self, path: pathlib.Path | str, clear: bool = False) -> None:
         self.path = pathlib.Path(path)
         self._file = h5py.File(self.path, "r")
-        self._daq = daq
+        self._daq = "Alibava.DAQ"
         self._clear = clear
-        if daq not in self._file:
+        if self._daq not in self._file:
             senders = list(self._file.keys())
             self._file.close()
-            raise KeyError(f"No data of {daq} in {self.path}, senders: {senders}")
+            raise KeyError(f"No data of {self._daq} in {self.path}, senders: {senders}")
 
     @classmethod
     def from_run_id(cls, run_id: str, data_dir: pathlib.Path | str, daq: str = "Alibava.DAQ", clear: bool = False) -> "Run":
@@ -120,13 +109,15 @@ class Run:
 
     @property
     def sample_size(self) -> int:
-        "Sample_size of Alibava. We can't interrupt a run in between a sample size,"
-        "so we set it low (1-10)."
+        """
+            Sample_size of Alibava. We can't interrupt a run in between a sample size,
+            so we set it low (1-10).
+        """
         return self.bor_conf["sample_size"]
 
     @property
     def num_records(self) -> int:
-        "Records collected"
+        """Records collected"""
         return self.eor["data_records"]
 
     def records(self, block: int, chip: int) -> Iterator[numpy.ndarray]:
@@ -162,8 +153,8 @@ class Run:
 
     def adc(self, chip: int) -> numpy.ndarray:
         """
-        Returns an array with the adc values per chip for all records, 
-        shaped (number of records, number of channels)
+            Returns an array with the adc values per chip for all records, 
+            shaped (number of records, number of channels)
         """
         # channels = self.channels * (1 + chip)
         counts = [decode_record(record) for record in self.records(1, chip)]
@@ -185,8 +176,7 @@ class Run:
         return numpy.mean(pedestals)
 
     def to_csv_pedestals(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
-        """Write the pedestal data to csv"""
-
+        """Write the pedestal data to csv. Averaged over runs"""
         n_chips = self.n_chips # use this to separate between chips
         channels = numpy.asarray(self.channels).tolist()
 
@@ -224,7 +214,7 @@ class Run:
         return csv_path
 
     def to_csv_adc(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
-        """Write the output data to csv"""
+        """Write the raw ADC data to csv. ADC per run"""
 
         n_chips = self.n_chips # use this to separate between chips
         channels = numpy.asarray(self.channels).tolist()
@@ -272,10 +262,3 @@ def load_manifest(path: pathlib.Path | str) -> dict[str, Any]:
     """Load the JSON manifest written by a scan script"""
     with open(path) as f:
         return json.load(f)
-
-
-def scan_integrals(
-        manifest: dict[str, Any], data_dir: pathlib.Path | str, channel: int
-) -> list[dict[str, Any]]:
-    results = [{"test": 2}]
-    return results

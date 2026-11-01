@@ -2,17 +2,18 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Position scan: one run per stage position, replacing MotorScanWorker
+Position scan: one run per stage position
+               also includes bias scan option
 """
 
 import pathlib
-from typing import Any
 import numpy
+from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
-from ..analysis.h5 import Run
+from ..alibava.h5_alibava import Run
 from ..prompts import readline_dir, readline_int, readline_bool, readline_float
 from .common import reconfigure, read_hv, data_directory, run_identifier, get_position, clear_h5
 
@@ -30,13 +31,15 @@ def motor_scan(
     csv_dir: pathlib.Path | None = None,
     voltages: tuple[int, int, int] | None = None
 ) -> None:
-    """Take a run at every point of the x/y/z grid.
+    """
+        Take a run at every point of the x/y/z grid.
         We add 0.5 to every stop point to include it in the range
         range: (0 - 50 mm)
     """
-        
-    ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
-    reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
+
+    if daq.name.upper() == "ALIBAVA":
+        ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
+        reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
     points = [
         {"x": float(x), "y": float(y), "z": float(z)}
@@ -82,7 +85,7 @@ def motor_scan(
     return
 
 
-def cmd_motor_scan(tgt: dict[str, any]) -> None:
+def cmd_motor_scan(tgt: dict[str, Any]) -> None:
     tgt["ctrl"].log.status("Starting motor scan...")
     initial_pos = get_position(tgt["ctrl"], tgt["stage"])
     tgt["ctrl"].log.status(f"Stages currently at {initial_pos}")

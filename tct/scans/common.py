@@ -2,11 +2,10 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Helpers shared by the scan scripts
+Helpers shared by scans
 """
 
 import os
-import argparse
 import json
 import pathlib
 from datetime import datetime
@@ -45,10 +44,6 @@ def clear_h5(path: pathlib.Path) -> None:
         os.remove(path)
 
 
-def add_common_arguments(parser: argparse.ArgumentParser) -> None:
-    """Command line arguments every scan needs"""
-
-
 def data_directory(config_path: pathlib.Path, writer: SatelliteCommLink) -> pathlib.Path:
     """The output_directory the H5DataWriter"""
     writer_name = str(writer)
@@ -80,6 +75,7 @@ def save_manifest(path: pathlib.Path | None, scan: str, settings: dict[str, Any]
     with open(path, "w") as f:
         json.dump({"scan": scan, "settings": settings, "points": points}, f, indent=2)
     return path
+
 
 def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, float]:
     """Position of the stage, empty if it cannot be read"""

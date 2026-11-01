@@ -2,15 +2,18 @@ import pathlib
 import matplotlib.pyplot as plt
 import numpy
 from scipy.optimize import curve_fit
+from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
+from .h5_alibava import Run
 from ..controller import TCTController
 from ..prompts import readline_int, readline_float, readline_bool, readline_path
-from ..analysis.h5 import Run
 from ..scans.common import reconfigure, run_identifier, data_directory, get_position
 
 ZOFFSET: float = 0.1 # 100 um
+
+## NOT WORKING AS OF NOW!!!
 
 
 def gaussian(x, amp, mu, sigma):
@@ -30,8 +33,7 @@ def focus_finder(
     zrange: float, zsteps: int,
     pos0: dict[str, float]
 ) -> None:
-    """Take data in RADSOURCE mode for an amount of triggers
-    """
+    """Take data in RADSOURCE mode for an amount of triggers"""
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
     reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
@@ -152,10 +154,10 @@ def focus_finder(
         return
 
     
-def cmd_focus_finder(tgt: dict[str, any]) -> None:
+def cmd_focus_finder(tgt: dict[str, Any]) -> None:
     """
-    Scans along the x-axis, plotting the hits over channels and calcualting 
-    the width of the gaussian (if there is a hit)
+        Scans along the x-axis, plotting the hits over channels and calcualting 
+        the width of the gaussian (if there is a hit)
     """
     if (readline_bool("Did you align the laser and focus on the sensor?\n" \
         "You can eyeball the focus with MONITOR-ADC", True)):
