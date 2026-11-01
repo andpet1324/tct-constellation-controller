@@ -6,7 +6,6 @@ Helpers shared by scans
 """
 
 import os
-import json
 import pathlib
 from datetime import datetime
 from typing import Any
@@ -15,7 +14,10 @@ from constellation.core.controller_configuration import load_config
 from constellation.core.protocol.cscp1 import SatelliteState
 from constellation.core.controller import SatelliteCommLink
 
-from ..controller import TCTController
+from ..alibava.h5_alibava import AlibavaRun
+from ..lecroy.h5_lecroy import LeCroyRun
+from ..data.run import Run
+from ..controller import TCTController, daq_type
 
 def format_value(value: float) -> str:
     """Format a number for use in a run identifier.
@@ -68,24 +70,26 @@ def read_hv(ctrl: TCTController, hv: SatelliteCommLink) -> dict[str, float]:
     return {"voltage": response.payload["voltage"], "current": response.payload["current"]}
 
 
-def save_manifest(path: pathlib.Path | None, scan: str, settings: dict[str, Any], points: list[dict[str, Any]]) -> pathlib.Path:
-    """Write the list of runs taken in a scan and their settings as JSON"""
-    if path is None:
-        path = pathlib.Path(f"{scan}_{datetime.now():%Y%m%d_%H%M%S}.json")
-    with open(path, "w") as f:
-        json.dump({"scan": scan, "settings": settings, "points": points}, f, indent=2)
-    return path
-
-
 def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, float]:
-    """Position of the stage, empty if it cannot be read"""
-    try:
-        position = {
-            "x": float(stage.position_x().payload), 
-            "y": float(stage.position_y().payload), 
-            "z": float(stage.position_z().payload)
-        }
-    except ValueError as err:
-        print(f"Getting stage positions failed with {err}")
-        return {}
+    """Position of the stage, raising if it cannot be read"""
+    position = {}
+    for axis, read in (("x", stage.position_x), ("y", stage.position_y), ("z", stage.position_z)):
+        response = read()
+        if not response.success:
+            raise RuntimeError(f"Reading stage position {axis} failed: {response.errmsg}")
+        try:
+            position[axis] = float(response.payload)
+        except (TypeError, ValueError) as err:
+            raise RuntimeError(f"Stage position {axis} is not a number: {response.payload!r}") from err
     return position
+
+_RUNS = {"ALIBAVA": AlibavaRun, "LECROY": LeCroyRun}
+
+def open_run(run_id: str, data_dir: pathlib.Path | str, daq: SatelliteCommLink, clear: bool = False) -> Run:
+    """Open the run with the reader of the DAQ"""
+    canonical = str(daq)
+    try:
+        cls = _RUNS[daq_type(daq)]
+    except KeyError:
+        raise ValueError(f"No Run reader for DAQ '{canonical}'")
+    return cls.from_run_id(run_id, data_dir, canonical, clear=clear)

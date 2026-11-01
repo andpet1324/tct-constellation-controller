@@ -68,6 +68,8 @@ class Menu:
                 _, func = self._lines[cmd]
                 try:
                     func(tgt)
+                except (KeyboardInterrupt, EOFError):
+                    print("\nCancelled")
                 except Exception as err:
                     print(f"function {func} failed with {err}")
             else:
@@ -101,8 +103,6 @@ def main(args: list[str] | None = None):
     parser = argparse.ArgumentParser(description="TCT Menu")
     parser.add_argument("-c", "--config", required=True, type=pathlib.Path, default="tct.toml", help="Constellation configuration file")
     parser.add_argument("-g", "--group", required=True, help="Constellation group name")
-    parser.add_argument("--manifest", type=pathlib.Path, help="Where to write the scan manifest (JSON)")
-    add_common_arguments(parser)
     opts = parser.parse_args(args)
 
     ctrl = TCTController(opts.group)

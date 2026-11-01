@@ -26,7 +26,6 @@ def calibrate(
         if not response.success:
             raise RuntimeError(f"Scope calibration failed: {response.errmsg}")
         if response.payload != 0:
-            print(response.payload)
             raise RuntimeError(f"Scope calibration returned status {response.payload}: {response.msg}")
         ctrl.log.status(response.msg + " (0 = passed)")
 

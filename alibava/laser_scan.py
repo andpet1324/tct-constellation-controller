@@ -3,10 +3,10 @@ from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
-from .h5_alibava import Run
+from .h5_alibava import AlibavaRun
 from ..controller import TCTController
 from ..prompts import readline_int, readline_dir, readline_bool
-from ..scans.common import reconfigure, run_identifier, data_directory, get_position, read_hv
+from ..scans.common import reconfigure, run_identifier, data_directory, get_position, read_hv, clear_h5
 
 
 def laser_scan(
@@ -28,16 +28,23 @@ def laser_scan(
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
     reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
-    run_id = run_identifier("laser_scan")
-    collected = ctrl.take_run(run_id, triggers)
+    position = get_position(ctrl, stage)
 
-    point = {"run_id": run_id, "position": get_position(ctrl, stage), "triggers": collected, **read_hv(ctrl, hv)}
+    run_id = run_identifier("laser_scan")
+    try:
+        collected = ctrl.take_run(run_id, triggers)
+    except KeyboardInterrupt:
+        if data_dir is not None:
+            clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
+        return results
+
+    point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
     results.append(point)
 
     if csv_dir is not None:
         try:
-            with Run.from_run_id(run_id, data_dir) as run:
-                ctrl.log.status(f"Data written to {run.to_csv_adc(csv_dir, point)}")
+            with AlibavaRun.from_run_id(run_id, data_dir, str(daq), clear=True) as run:
+                ctrl.log.status(f"Data written to {run.to_csv(csv_dir, point)}")
         except Exception as err:
             ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
 
@@ -45,7 +52,10 @@ def laser_scan(
 
     
 def cmd_laser_scan(tgt: dict[str, Any]) -> None:
-    """Do a RADSOURCE run in one position and save the data to csv for analysis"""
+    """
+        Do a RADSOURCE run in one position and save the data to csv for analysis
+        THIS IS ACTUALLY THE SAME AS MANUAL SCAN WITH LESS FUNCTIONALITY
+    """
     if (readline_bool("Did you align the laser on the sensor?", True)):
         triggers = readline_int("Triggers per run", 10000)
         csv_dir = readline_dir("data directory for csv")

@@ -18,8 +18,8 @@ dependencies = [
 ]
 
 [project.scripts]
-tct-monitor = "tct.monitor:main"
-tct-menu = "tct.menu:main"
+tct-monitor-alibava = "alibava.monitor_alibava:main"
+tct-menu = "menu:main"
 
 [tool.setuptools.packages.find]
-include = ["tct*"]
+include = ["*"]

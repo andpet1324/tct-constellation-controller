@@ -43,15 +43,12 @@ def readline_bool(prompt: str, default = False) -> bool:
         response = input(prompt + " [Y/N]: > ").strip()
         if response == "":
             return default
-        try:
-            val = str(response).upper()
-            if val in {"Y", "YES", "TRUE", "1"}:
-                return True
-            elif val in {"N", "NO", "FALSE", "0"}:
-                return False
-        except ValueError as err:
-            print(f"{response} is not a valid answer! Failed with {err}.")
-            continue
+        val = response.upper()
+        if val in {"Y", "YES", "TRUE", "1"}:
+            return True
+        if val in {"N", "NO", "FALSE", "0"}:
+            return False
+        print(f"{response} is not a valid answer! Use Y or N.")
 
 def complete_dir(text: str, state: int) -> str | None:
     pattern = os.path.expanduser(text) + "*"

@@ -6,10 +6,10 @@ from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
-from .h5_alibava import Run
+from .h5_alibava import AlibavaRun
 from ..controller import TCTController
 from ..prompts import readline_int, readline_float, readline_bool, readline_path
-from ..scans.common import reconfigure, run_identifier, data_directory, get_position
+from ..scans.common import reconfigure, run_identifier, data_directory, get_position, clear_h5
 
 ZOFFSET: float = 0.1 # 100 um
 
@@ -73,6 +73,7 @@ def focus_finder(
     count = 0
     scan_range = xsteps + zsteps
     widths = []
+    run_id = None
     try:
         for z in numpy.linspace(z_start, z_start + zrange, zsteps):
             for x in numpy.linspace(pos0["x"], pos0["x"] + xrange, xsteps):
@@ -82,7 +83,7 @@ def focus_finder(
                 run_id = run_identifier("focus_finder_scan" + str(count))
                 ctrl.take_run(run_id, trgs)
                 try:
-                    with Run.from_run_id(run_id, data_dir) as run:
+                    with AlibavaRun.from_run_id(run_id, data_dir, str(daq), clear=True) as run:
                         channels = run.channels
                         xl = channels + chip * len(channels)
                         adcs = run.adc(chip)
@@ -151,9 +152,11 @@ def focus_finder(
             print("No successful fits, could not determine focus")
 
     except KeyboardInterrupt:
+        if run_id is not None:
+            clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
         return
 
-    
+
 def cmd_focus_finder(tgt: dict[str, Any]) -> None:
     """
         Scans along the x-axis, plotting the hits over channels and calcualting 

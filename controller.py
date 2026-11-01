@@ -11,7 +11,7 @@ import time
 from datetime import datetime
 from typing import Any
 
-from constellation.core.controller import ScriptableController
+from constellation.core.controller import ScriptableController, SatelliteCommLink
 from constellation.core.controller_configuration import load_config
 from constellation.core.listener import MonitoringListener
 from constellation.core.monitoring import schedule_metric
@@ -19,12 +19,24 @@ from constellation.core.monitoring import Metric
 from constellation.core.protocol.cscp1 import SatelliteState
 
 
+# Satellite types as they are named in Constellation, mapped to the short DAQ names
+DAQ_TYPES = {"ALIBAVA": "ALIBAVA", "LECROYSATELLITE": "LECROY"}
+
+
+def daq_type(daq: SatelliteCommLink | str) -> str:
+    """
+        Short name of the DAQ, e.g. ALIBAVA or LECROY, from its link or canonical name (Type.name).
+        Unknown types are returned in upper case.
+    """
+    satellite_type = str(daq).split(".", 1)[0].upper()
+    return DAQ_TYPES.get(satellite_type, satellite_type)
+
+
 class TCTController(ScriptableController, MonitoringListener):
     """
     Controller which ends a run once enough triggers have been collected.
     The number of triggers is taken from the TRIG metric of the Alibava satellite, or NUM_TRIGGERS from LeCroySatellite.
     """
-
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
 
@@ -43,7 +55,7 @@ class TCTController(ScriptableController, MonitoringListener):
             self.set_topics(["STAT/NUM_TRIGGERS"])
 
     def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and (sender.split(".", 1)[0]).upper() == self._daq.upper():
+        if (metric.name == "TRIG" or metric.name == "NUM_TRIGGERS") and daq_type(sender) == self._daq:
             with self._triggers_lock:
                 self._num_triggers = int(value)
 
@@ -51,8 +63,8 @@ class TCTController(ScriptableController, MonitoringListener):
         cfg = load_config(config_path)
         self._data_dir = str(cfg.get_satellite_configuration(writer).get_path("output_directory"))
 
-    def set_daq(self, daq: str) -> None:
-        self._daq = daq
+    def set_daq(self, daq: SatelliteCommLink) -> None:
+        self._daq = daq_type(daq)
         self.subscribe_metrics()
         
     @property

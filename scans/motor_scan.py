@@ -12,10 +12,9 @@ from typing import Any
 
 from constellation.core.controller import SatelliteCommLink
 
-from ..controller import TCTController
-from ..alibava.h5_alibava import Run
+from ..controller import TCTController, daq_type
 from ..prompts import readline_dir, readline_int, readline_bool, readline_float
-from .common import reconfigure, read_hv, data_directory, run_identifier, get_position, clear_h5
+from .common import reconfigure, read_hv, data_directory, run_identifier, get_position, clear_h5, open_run
 
 
 def motor_scan(
@@ -27,8 +26,8 @@ def motor_scan(
     yrange: tuple[float, float, float],
     zrange: tuple[float, float, float],
     triggers: int,
-    data_dir: pathlib.Path | None = None,
-    csv_dir: pathlib.Path | None = None,
+    data_dir: pathlib.Path,
+    csv_dir: pathlib.Path,
     voltages: tuple[int, int, int] | None = None
 ) -> None:
     """
@@ -37,7 +36,7 @@ def motor_scan(
         range: (0 - 50 mm)
     """
 
-    if daq.name.upper() == "ALIBAVA":
+    if daq_type(daq) == "ALIBAVA":
         ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
         reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
@@ -67,17 +66,16 @@ def motor_scan(
 
                 point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
 
-                if csv_dir is not None:
-                    try:
-                        with Run.from_run_id(run_id, data_dir, clear=True) as run:
-                            ctrl.log.status(f"Data written to {run.to_csv_adc(csv_dir, point)}")
-                    except Exception as err:
-                        ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
+                try:
+                    with open_run(run_id, data_dir, daq, clear=True) as run:
+                        ctrl.log.status(f"Data written to {run.to_csv(csv_dir, point)}")
+                except Exception as err:
+                    ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
             except KeyboardInterrupt:
                 if voltages is not None:
                     ctrl.log.status(f"Setting voltage to {voltages[0]}V")
                     reconfigure(ctrl, hv, {"voltage": voltages[0]}, timeout=120)
-                clear_h5((pathlib.Path(data_dir) / f"data_{run_id}.h5"))
+                clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
                 return
     if voltages is not None:
         ctrl.log.status(f"Setting voltage to {voltages[0]}V")
@@ -134,21 +132,16 @@ def cmd_motor_scan(tgt: dict[str, Any]) -> None:
     else:
         zf = zf + 0.5
 
-    csv_dir = readline_dir("data directory for csv (default is none)", None)
-    data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None
+    csv_dir = readline_dir("data directory for csv")
+    if csv_dir is None:
+        print("CSV directory required!")
+        return
+    data_dir = data_directory(tgt["cfg"], tgt["writer"])
     try:
        motor_scan(
-            tgt["ctrl"],
-            tgt["stage"],
-            tgt["daq"],
-            tgt["hv"],
-            (xi, xf, xstep), 
-            (yi, yf, ystep), 
-            (zi, zf, zstep), 
-            trgs,
-            data_dir, 
-            csv_dir,
-            voltage
+            tgt["ctrl"], tgt["stage"], tgt["daq"], tgt["hv"],
+            (xi, xf, xstep), (yi, yf, ystep), (zi, zf, zstep), 
+            trgs, data_dir, csv_dir, voltage
         )
     except Exception as err:
         print(f"Motor scan interrupted with error: {err}")

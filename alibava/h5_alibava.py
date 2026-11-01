@@ -6,14 +6,14 @@ Reading the HDF5 files written by the H5DataWriter satellite,
 with Alibava DAQ
 """
 
-import os
 import json
 import pathlib
-import h5py
 import numpy
 import pandas
 from collections.abc import Iterator
 from typing import Any
+
+from ..data.run import Run
 
 CHANNELS = 128
 TDC_UNIT_NS = 100.0
@@ -38,55 +38,7 @@ def decode_header(payload: numpy.ndarray) -> numpy.ndarray:
     return payload[0::2] + payload[1::2] * 64 # size 32
 
 
-class Run:
-    """
-        One run in an HDF5 file, giving access to the adc data.
-    """
-    def __init__(self, path: pathlib.Path | str, clear: bool = False) -> None:
-        self.path = pathlib.Path(path)
-        self._file = h5py.File(self.path, "r")
-        self._daq = "Alibava.DAQ"
-        self._clear = clear
-        if self._daq not in self._file:
-            senders = list(self._file.keys())
-            self._file.close()
-            raise KeyError(f"No data of {self._daq} in {self.path}, senders: {senders}")
-
-    @classmethod
-    def from_run_id(cls, run_id: str, data_dir: pathlib.Path | str, daq: str = "Alibava.DAQ", clear: bool = False) -> "Run":
-        """Open the file the H5DataWriter creates for a run identifier"""
-        return cls(pathlib.Path(data_dir) / f"data_{run_id}.h5", daq=daq, clear=clear)
-
-    def delete_file(self) -> None:
-        if os.path.exists(self.path):
-            os.remove(self.path)
-
-    def __enter__(self) -> "Run":
-        return self
-
-    def __exit__(self, *exc: Any) -> None:
-        self.close()
-
-    def close(self) -> None:
-        if self._clear:
-            self.delete_file()
-        self._file.close()
-
-    @property
-    def bor_conf(self) -> dict[str, Any]:
-        """User tags of the begin-of-run message of the Alibava"""
-        return dict(self._file[self._daq]["BOR"]["configuration"].attrs)
-
-    @property
-    def bor_user(self) -> dict[str, Any]:
-        """User tags of the begin-of-run message of the Alibava"""
-        return dict(self._file[self._daq]["BOR"]["user_tags"].attrs)
-
-    @property
-    def eor(self) -> dict[str, Any]:
-        """Run metadata of the end-of-run message, e.g. condition and time_end"""
-        return dict(self._file[self._daq]["EOR"]["run_metadata"].attrs)
-
+class AlibavaRun(Run):
     @property
     def channels(self) -> numpy.ndarray[int]:
         """Channels contained in every record. It is hardcoded"""
@@ -125,27 +77,20 @@ class Run:
             Payload of every data record. Should be as many payloads as triggers
             block = 0 for data block and block = 1 for header block.
         """
-        group = self._file[self._daq]
-        for name in sorted(k for k in group.keys() if k.startswith("data_")):
-            record = group[name]
+        for record in self._data_groups():
             dtype = record.attrs.get("dtype", "float64")
             yield numpy.asarray(record["block_0" + str(block + 2*chip)], dtype=dtype)
 
-    def _record_groups(self) -> list[h5py.Group]:
-        """Data record groups in acquisition order"""
-        group = self._file[self._daq]
-        return [group[name] for name in sorted(k for k in group.keys() if k.startswith("data_"))]
-
     def clocks(self) -> numpy.ndarray:
         """Clock counter of every record"""
-        return numpy.array([int(r.attrs["clock"]) for r in self._record_groups()], dtype=numpy.int64)
+        return numpy.array([int(r.attrs["clock"]) for r in self._data_groups()], dtype=numpy.int64)
 
     def times(self) -> numpy.ndarray:
         """
         T = 100 * (ipart + fpart / 65535). With ipart = 0 this is in the 0-100 ns window.
         NOTE! We can not get time in PEDESTAL mode. I've only checked that it works for RADSOURCE
         """
-        tdc = numpy.array([int(r.attrs["tdc"]) for r in self._record_groups()], dtype=numpy.int64) & 0xFFFFFFFF
+        tdc = numpy.array([int(r.attrs["tdc"]) for r in self._data_groups()], dtype=numpy.int64) & 0xFFFFFFFF
         ipart = (tdc >> 16).astype(numpy.int16).astype(numpy.float64)
         fpart = (tdc & 0xFFFF).astype(numpy.float64)
         fpart = numpy.where(ipart < 0, -fpart, fpart)
@@ -175,7 +120,7 @@ class Run:
         pedestals = self.pedestals(chip)
         return numpy.mean(pedestals)
 
-    def to_csv_pedestals(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
+    def to_csv_pedestals(self, output_path: pathlib.Path | str, point: dict[str, Any]) -> pathlib.Path:
         """Write the pedestal data to csv. Averaged over runs"""
         n_chips = self.n_chips # use this to separate between chips
         channels = numpy.asarray(self.channels).tolist()
@@ -192,28 +137,19 @@ class Run:
         df = pandas.concat(frames, ignore_index=True)
         df = df.sort_values("channel")
 
-        header = {}
-        if point is not None:
-            header = {
-                "run_id": point["run_id"],
-                **point["position"],
-                "voltage": point.get("voltage"),
-                "current": point.get("current"),
-                "triggers": point.get("triggers"),
-                "time_mean": float(times.mean()),
-                "time_min": float(times.min()),
-                "time_max": float(times.max())
-            }
-
-        output_path = pathlib.Path(output_path)
-        output_path.mkdir(parents=True, exist_ok=True)
-        csv_path = output_path / f"{point['run_id']}.csv"
+        header = self._header(
+            point,
+            time_mean=float(times.mean()),
+            time_min=float(times.min()),
+            time_max=float(times.max()),
+        )
+        csv_path = self._csv_path(output_path, point)
         with open(csv_path, "w") as f:
             f.write(f"# {json.dumps(header, separators=(',', ':'))}\n")
             df.to_csv(f, index=False)
         return csv_path
 
-    def to_csv_adc(self, output_path: pathlib.Path | str, point: dict[str, Any] | None) -> pathlib.Path:
+    def to_csv(self, output_path: pathlib.Path | str, point: dict[str, Any]) -> pathlib.Path:
         """Write the raw ADC data to csv. ADC per run"""
 
         n_chips = self.n_chips # use this to separate between chips
@@ -239,26 +175,9 @@ class Run:
         df = pandas.concat(frames, ignore_index=True)
         df = df.sort_values(["channel", "run"], ascending=[True, False])
 
-        header = {}
-        if point is not None:
-            header = {
-                "run_id": point["run_id"],
-                **point["position"],
-                "voltage": point.get("voltage"),
-                "current": point.get("current"),
-                "triggers": point.get("triggers")
-            }
-
-        output_path = pathlib.Path(output_path)
-        output_path.mkdir(parents=True, exist_ok=True)
-        csv_path = output_path / f"{point['run_id']}.csv"
+        header = self._header(point)
+        csv_path = self._csv_path(output_path, point)
         with open(csv_path, "w") as f:
             f.write(f"# {json.dumps(header, separators=(',', ':'))}\n")
             df.to_csv(f, index=False)
         return csv_path
-
-
-def load_manifest(path: pathlib.Path | str) -> dict[str, Any]:
-    """Load the JSON manifest written by a scan script"""
-    with open(path) as f:
-        return json.load(f)
