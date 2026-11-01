@@ -24,7 +24,7 @@ class AlibavaMonitor(Monitor):
     """Live plots of the pedestals, noise and ADC counts of the Alibava"""
 
     def __init__(self, name: str, group: str) -> None:
-        super().__init__(name, group, "Alibava")
+        super().__init__(name, group, "Alibava.DAQ")
 
     def monitor_pedestals(self, interval: float = 0.5) -> None:
         """Show the plot or plots and keep it updated until the window is closed"""
