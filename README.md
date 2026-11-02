@@ -54,8 +54,8 @@ Parameters that can be set in the menus SETTINGS submenu.
 
 ## Shared Scans
 
-| Scan | Module | Description |
-|---|---|---|
+| Scan | Module | Description | Saves to CSV |
+|---|---|---|---|
 | Motor scan | [scans/motor_scan.py](scans/motor_scan.py) | Scans a given x,y,z range and takes data in each point, with choice of including a bias range scan. | Yes |
 | Bias scan | [scans/bias_scan.py](scans/bias_scan.py) | Scans a bias range at one spatial position | Yes |
 | Calibration | [scans/calibrate.py](scans/calibrate.py) | Self-calibrates the scope and homes the stages | No |
@@ -66,7 +66,7 @@ Parameters that can be set in the menus SETTINGS submenu.
 ### Alibava Scans
 
 | Scan | Module | Description | Saves to CSV |
-|---|---|---|
+|---|---|---|---|
 | Laser Scan | [alibava/laser_scan.py](alibava/laser_scan.py) | DEPRECATED! Use scans/manual_translation.py | Yes |
 | Pedestal Scan | [alibava/pedestal_scan.py](alibava/pedestal_scan.py) | Takes data in Alibava's PEDESTAL mode. Writes the pedestal value per channel averaged 
                                                                         over the total amount of runs |  Yes |
@@ -75,13 +75,7 @@ Parameters that can be set in the menus SETTINGS submenu.
 
 ### LeCroy Scans
 
-| Scan | Module | Description |
-|---|---|---|
-| Laser Scan | [alibava/laser_scan.py](alibava/laser_scan.py) | DEPRECATED! Use scans/manual_translation.py |
-| Pedestal Scan | [alibava/pedestal_scan.py](alibava/pedestal_scan.py) | Takes data in Alibava's PEDESTAL mode. Writes the pedestal value per channel averaged 
-                                                                        over the total amount of runs |
-| Run Pedestals | [alibava/continuous_runs.py](alibava/continuous_runs.py) | Continuously takes data in Alibava's PEDESTAL mode. Meant for use in combination with a monitor. |
-| Run ADC | [alibava/continuous_runs.py](alibava/continuous_runs.py) | Continuously takes data in Alibava's RADSOURCE mode. Meant for use in combination with a monitor. |
+Nothing specific yet...
 
 ## Metrics
 
@@ -105,7 +99,6 @@ which has the following format:
 
 Alibava output has two formats depending on wether the run is in PEDESTAL or RADSOURCE mode.
 In PEDESTAL mode, the average ADC per channel is stored. In RADSOURCE mode, the raw ADC data is stored, along with the timestamp w.r.t the current 100 ns latency window.
-
 
 ### LeCroy Data Format
 
