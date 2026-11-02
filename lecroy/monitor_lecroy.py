@@ -20,6 +20,7 @@ from constellation.core.monitoring import Metric
 
 from ..monitor_base import Monitor
 
+## NOT WORKING RIGHT NOW!
 
 MAX_CHANNELS = 4
 WAVEFORM_METRIC = "WAVEFORM_C"
