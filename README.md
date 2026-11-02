@@ -27,7 +27,7 @@ pip install -e .
 
 | Command | Description |
 |---|---|
-| `tct-menu` | Interactive controller menu |
+| `tct-controller` | Interactive controller menu |
 | `tct-monitor` | Live monitor listening to the runs of the controller |
 
 ## Satellites
