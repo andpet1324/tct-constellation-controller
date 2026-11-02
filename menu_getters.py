@@ -1,3 +1,9 @@
+"""
+SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+SPDX-License-Identifier: EUPL-1.2
+
+Getters of satellite parameters.
+"""
 from typing import Any
 
 from constellation.core.protocol.cscp1 import SatelliteState

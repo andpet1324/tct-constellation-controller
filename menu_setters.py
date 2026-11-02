@@ -1,3 +1,9 @@
+"""
+SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+SPDX-License-Identifier: EUPL-1.2
+
+Setters of satellite parameters by reconfiguration.
+"""
 from typing import Any
 
 from .scans.common import reconfigure

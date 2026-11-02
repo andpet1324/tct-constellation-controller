@@ -6,7 +6,6 @@ Live display of the ADC counts from Alibava per channel.
 
 """
 
-import argparse
 import pathlib
 import numpy
 from typing import Any
@@ -14,8 +13,7 @@ from typing import Any
 import matplotlib.pyplot as plt
 
 from .h5_alibava import AlibavaRun
-from ..monitor import Monitor
-from ..menu import Menu
+from ..monitor_base import Monitor
 from ..prompts import readline_int, readline_float, readline_path, readline_bool
 
 DELAY_INTERVAL = 8
@@ -23,8 +21,8 @@ DELAY_INTERVAL = 8
 class AlibavaMonitor(Monitor):
     """Live plots of the pedestals, noise and ADC counts of the Alibava"""
 
-    def __init__(self, name: str, group: str) -> None:
-        super().__init__(name, group, "Alibava.DAQ")
+    def __init__(self, name: str, group: str, daq: str) -> None:
+        super().__init__(name, group, daq)
 
     def monitor_pedestals(self, interval: float = 0.5) -> None:
         """Show the plot or plots and keep it updated until the window is closed"""
@@ -104,8 +102,7 @@ class AlibavaMonitor(Monitor):
         ch_max: int | None,
         interval: float = 0.5,
     ) -> None:
-        """Take data in RADSOURCE mode for an amount of triggers
-        """
+        """Take data in RADSOURCE mode for an amount of triggers"""
 
         pedestals_df = numpy.genfromtxt(pedestals, delimiter=",",
                     names=True, skip_header=1, dtype=float)
@@ -240,7 +237,7 @@ class AlibavaMonitor(Monitor):
 def cmd_monitor_pedestals(tgt: dict[str, Any]) -> None:
     """Plot pedestals and noise of the runs taken by the controller"""
     try:
-        tgt["monitor"].monitor_pedestals(tgt["interval"])
+        tgt["alibava"].monitor_pedestals(tgt["interval"])
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:
@@ -257,7 +254,7 @@ def cmd_monitor_adc(tgt: dict[str, Any]) -> None:
         ch_min = readline_int("Lower bound for channel range", 70)
         ch_max = readline_int("Upper bound for channel range", 120)
     try:
-        tgt["monitor"].monitor_adc(
+        tgt["alibava"].monitor_adc(
             delay, pedestal_data, hit_threshold, ch_min, ch_max, tgt["interval"]
         )
     except Exception as err:
@@ -266,28 +263,3 @@ def cmd_monitor_adc(tgt: dict[str, Any]) -> None:
         print("Monitor ADC ended")
 
 
-MENU = {
-    "PEDESTALS": ("Monitor pedestals and noise of the Alibava", cmd_monitor_pedestals),
-    "ADC": ("Monitor ADC counts and hits per channel of the Alibava", cmd_monitor_adc),
-}
-
-
-def main(args: Any = None) -> None:
-    parser = argparse.ArgumentParser(description="Live display of Alibava metrics")
-    parser.add_argument("-g", "--group", default="tct", help="Constellation group name")
-    parser.add_argument("-n", "--name", default="tct", help="Monitor name")
-    parser.add_argument("--interval", type=float, default=0.5, help="Plot refresh interval in s")
-    opts = parser.parse_args(args)
-
-    root = Menu("Monitor")
-    root.load_subs(MENU)
-
-    monitor = AlibavaMonitor(opts.name, opts.group)
-    try:
-        root.steer({"monitor": monitor, "interval": opts.interval})
-    finally:
-        monitor.terminate()
-
-
-if __name__ == "__main__":
-    main()

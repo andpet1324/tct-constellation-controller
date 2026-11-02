@@ -1,3 +1,9 @@
+"""
+SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
+SPDX-License-Identifier: EUPL-1.2
+
+Controller menu that handles satellite states and launching scans.
+"""
 from collections.abc import Callable
 import argparse
 import readline
@@ -6,7 +12,7 @@ import time
 from typing import Any
 
 from .controller import TCTController
-from .menu_layout import MENU
+from .menu_layout import controller_menu
 
 readline.parse_and_bind("tab: complete")
 
@@ -125,7 +131,8 @@ def main(args: list[str] | None = None):
     ctrl.set_data_dir(opts.config, writer_id)
 
     root = Menu("Menu")
-    root.load_subs(MENU)
+    root.load_subs({daq.upper(): controller_menu()[daq.upper()]})
+    # root.load_subs(controller_menu())
     tgt = {"ctrl": ctrl, "cfg": opts.config, "hv": hv, "writer": writer, "stage": stage, "daq": daq}
     root.steer(tgt)
 

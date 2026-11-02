@@ -15,11 +15,17 @@ dependencies = [
     "numpy",
     "h5py",
     "pandas",
+    "matplotlib",
+    "scipy",
 ]
 
 [project.scripts]
-tct-monitor-alibava = "alibava.monitor_alibava:main"
-tct-menu = "menu:main"
+tct-monitor = "tct.monitor:main"
+tct-controller = "tct.menu:main"
 
-[tool.setuptools.packages.find]
-include = ["*"]
+# The repo root is the package, so the relative imports resolve
+[tool.setuptools]
+packages = ["tct", "tct.alibava", "tct.data", "tct.lecroy", "tct.scans"]
+
+[tool.setuptools.package-dir]
+tct = "."

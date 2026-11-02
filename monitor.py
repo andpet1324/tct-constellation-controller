@@ -2,80 +2,50 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Base class of the live monitors, listening to the runs taken by the controller.
-The DAQ specific plotting lives in the subclasses.
-
+Entry point of the live monitors, listening to the runs taken by the controller.
+The monitor base class lives in monitor_base.py.
 """
 
-import threading
-from datetime import datetime
-from queue import Empty
+import argparse
+import time
 from typing import Any
 
-from constellation.core.listener import StandaloneListener
-from constellation.core.monitoring import Metric
+from .menu_layout import monitor_menu
+from .controller import TCTController
+from .menu import Menu, find_sat
+from .alibava.monitor_alibava import AlibavaMonitor
+from .lecroy.monitor_lecroy import LeCroyMonitor
 
 
-class Monitor(StandaloneListener):
-    """Listener keeping track of the current run of the controller"""
+def main(args: Any = None) -> None:
+    parser = argparse.ArgumentParser(description="Live display of the Alibava or LeCroy data")
+    parser.add_argument("-g", "--group", default="tct", help="Constellation group name")
+    parser.add_argument("-n", "--name", default="tct", help="Monitor name")
+    parser.add_argument("-daq", "--daq", required=True, choices=["Alibava", "LeCroy"], help="Type of DAQ to monitor")
+    parser.add_argument("--interval", type=float, default=0.5, help="Plot refresh interval in s")
+    opts = parser.parse_args(args)
 
-    def __init__(self, name: str, group: str, daq: str) -> None:
-        super().__init__(name=name, group=group, interface=None)
+    ctrl = TCTController(opts.group)
+    daq_id = None
+    while daq_id is None:
+        time.sleep(1) # Wait for satellites to connect
+        daq_id, _ = find_sat(ctrl.constellation.satellites, opts.daq)
 
-        self._run_id = None
-        self._data_dir = None
-        self._daq = daq
-        self._lock = threading.Lock() # make sure we´re not reading at the same time as writing
-        self._dirty = False # indicates when to update the plot
-        self._pause = False
+    if opts.daq.upper() == "ALIBAVA":
+        monitor = AlibavaMonitor(opts.name, opts.group, daq_id)
+    elif opts.daq.upper() == "LECROY":
+        monitor = LeCroyMonitor(opts.name, opts.group, daq_id)
+    else:
+        raise(ValueError, "DAQ does not match Alibava or LeCroy!")
 
-        topics = ["STAT/RUN_IDENTIFIER", "STAT/DATA_DIRECTORY", "STAT/TRIG"]
-        self.set_topics(topics)
+    root = Menu("Monitor")
+    root.load_subs({opts.daq.upper(): monitor_menu()[opts.daq.upper()]})
+    try:
+        root.steer({opts.daq.lower(): monitor, "interval": opts.interval})
+    finally:
+        monitor.terminate()
+        ctrl.terminate()
 
-    def receive_metric(self, sender: str, metric: Metric, timestamp: datetime, value: Any) -> None:
-        with self._lock:
-            if metric.name.startswith("RUN_IDENTIFIER"):
-                new_run_id = str(value)
-                if self._data_dir is not None and new_run_id != self._run_id:
-                    self._dirty = True
-                self._run_id = new_run_id
-            elif metric.name.startswith("DATA_DIRECTORY"):
-                self._data_dir = str(value)
 
-    def _reset(self) -> None:
-        self._run_id = None
-        self._dirty = True
-
-    def reset(self) -> None:
-        with self._lock:
-            self._reset()
-
-    def pause(self) -> None:
-        self._pause = True
-        if self._pause == True:
-            self.pause()
-
-    def resume(self) -> None:
-        self._pause = False
-        return
-
-    @property
-    def dirty(self) -> bool:
-        return self._dirty
-
-    def _process_tasks(self) -> None:
-        """Run the queued CHIRP callbacks without blocking"""
-        while True:
-            try:
-                callback, args = self.task_queue.get(block=False)
-            except Empty:
-                return
-            try:
-                callback(*args)
-            except Exception as err:
-                self.log.exception("Caught exception handling task '%s': %s", callback, repr(err))
-
-    def finish_run(self) -> None:
-        """Make sure the run has finished before opening the data file"""
-        with self._lock:
-            self._dirty = False
+if __name__ == "__main__":
+    main()

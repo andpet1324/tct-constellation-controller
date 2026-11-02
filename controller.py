@@ -2,7 +2,7 @@
 SPDX-FileCopyrightText: 2026 A. Pettersson, DESY
 SPDX-License-Identifier: EUPL-1.2
 
-Controller for the TCT setup, taking one run per scan point
+Controller for the TCT setup.
 """
 
 import pathlib
@@ -19,14 +19,13 @@ from constellation.core.monitoring import Metric
 from constellation.core.protocol.cscp1 import SatelliteState
 
 
-# Satellite types as they are named in Constellation, mapped to the short DAQ names
+# Satellite types as they are named in Constellation
 DAQ_TYPES = {"ALIBAVA": "ALIBAVA", "LECROYSATELLITE": "LECROY"}
 
 
 def daq_type(daq: SatelliteCommLink | str) -> str:
     """
-        Short name of the DAQ, e.g. ALIBAVA or LECROY, from its link or canonical name (Type.name).
-        Unknown types are returned in upper case.
+        Short name of the DAQ: ALIBAVA or LECROY
     """
     satellite_type = str(daq).split(".", 1)[0].upper()
     return DAQ_TYPES.get(satellite_type, satellite_type)
@@ -34,8 +33,8 @@ def daq_type(daq: SatelliteCommLink | str) -> str:
 
 class TCTController(ScriptableController, MonitoringListener):
     """
-    Controller which ends a run once enough triggers have been collected.
-    The number of triggers is taken from the TRIG metric of the Alibava satellite, or NUM_TRIGGERS from LeCroySatellite.
+        Controller which ends a run once enough triggers have been collected.
+        The number of triggers is taken from the TRIG metric of the Alibava satellite, or NUM_TRIGGERS from LeCroySatellite.
     """
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         super().__init__(*args, **kwargs)
@@ -86,8 +85,7 @@ class TCTController(ScriptableController, MonitoringListener):
         self.await_state(SatelliteState.ORBIT, timeout = 360) # Can take a long time to bias
 
     def take_run(self, run_identifier: str, triggers: int, timeout: int = 360) -> int:
-        """Take a single run until triggers have been collected.
-        """
+        """Take a single run until triggers have been collected."""
         timeout = timeout + 0.01 * triggers # Add some time if we have a lot of triggers
         self.reset_triggers()
 
