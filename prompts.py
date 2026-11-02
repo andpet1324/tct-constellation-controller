@@ -70,7 +70,7 @@ def complete_path(text: str, state: int) -> str | None:
 def readline_dir(prompt: str, default = None) -> pathlib.Path | None:
     while True:
         readline.set_completer(complete_dir)
-        response = input(prompt + " [" + str(default) + "]: > ").strip()
+        response = input(prompt + ": > ").strip()
         if response == "":
             return default
         path = pathlib.Path(response).expanduser() # expands to home directory

@@ -1,9 +1,10 @@
 from typing import Any
+import pathlib
 
 from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
-from ..scans.common import reconfigure, run_identifier
+from ..scans.common import reconfigure, run_identifier, data_directory, clear_h5
 from ..prompts import readline_int
 
 
@@ -11,43 +12,54 @@ def run_pedestals(
     ctrl: TCTController,
     daq: SatelliteCommLink,
     triggers: int,
+    data_dir: pathlib.Path,
 ) -> None:
     """Take data in PEDESTAL mode for an amount of triggers"""
     ctrl.log.status(f"Setting Alibava to PEDESTAL mode")
     reconfigure(ctrl, daq, {"run_type": "PEDESTAL"})
 
     count = 0
+    run_ids = []
     try:
         while True:
             run_id = run_identifier("monitor_pedestal_scan" + str(count))
             ctrl.take_run(run_id, triggers)
+            run_ids.append(run_id)
             count += 1
     except KeyboardInterrupt:
+        for run_id in run_ids:
+            clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
         return
 
 def run_adc(
     ctrl: TCTController,
     daq: SatelliteCommLink,
-    triggers: int
+    triggers: int,
+    data_dir: pathlib.Path,
 ) -> None:
     """Take data in RADSOURCE mode for an amount of triggers"""
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
     reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
     count = 0
+    run_ids = []
     try:
         while True:
             run_id = run_identifier("monitor_signal_scan" + str(count))
             ctrl.take_run(run_id, triggers)
+            run_ids.append(run_id)
             count += 1
     except KeyboardInterrupt:
+        for run_id in run_ids:
+            clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
         return
 
 def cmd_run_pedestals(tgt: dict[str, Any]) -> None:
     """Continously takes data for use with monitor pedestals"""
     triggers = readline_int("Triggers", 100)
+    data_dir = data_directory(tgt["cfg"], tgt["writer"])
     try:
-        run_pedestals(tgt["ctrl"], tgt["daq"], triggers)
+        run_pedestals(tgt["ctrl"], tgt["daq"], triggers, data_dir)
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:
@@ -57,8 +69,9 @@ def cmd_run_pedestals(tgt: dict[str, Any]) -> None:
 def cmd_run_adc(tgt: dict[str, Any]) -> None:
     """Continously takes data for use with monitor of adc"""
     triggers = readline_int("Triggers", 100)
+    data_dir = data_directory(tgt["cfg"], tgt["writer"])
     try:
-        run_adc(tgt["ctrl"], tgt["daq"], triggers)
+        run_adc(tgt["ctrl"], tgt["daq"], triggers, data_dir)
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:

@@ -131,8 +131,7 @@ def main(args: list[str] | None = None):
     ctrl.set_data_dir(opts.config, writer_id)
 
     root = Menu("Menu")
-    root.load_subs({daq.upper(): controller_menu()[daq.upper()]})
-    # root.load_subs(controller_menu())
+    root.load_subs(controller_menu())
     tgt = {"ctrl": ctrl, "cfg": opts.config, "hv": hv, "writer": writer, "stage": stage, "daq": daq}
     root.steer(tgt)
 

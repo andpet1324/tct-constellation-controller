@@ -74,7 +74,7 @@ def manual_translation(
 
 def cmd_manual_translation(tgt: dict[str, Any]) -> None:
     trgs = readline_int("triggers", 1000)
-    csv_dir = readline_dir("data directory for csv (default is none)", None)
+    csv_dir = readline_dir("data directory for csv (ENTER to skip)", None)
     data_dir = data_directory(tgt["cfg"], tgt["writer"]) if csv_dir else None
     try:
         manual_translation(
