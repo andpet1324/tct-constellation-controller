@@ -12,7 +12,7 @@ import numpy
 from collections.abc import Iterator
 from typing import Any
 
-from ..data.run import Run
+from ..run import Run
 
 def decode_record(payload: numpy.ndarray, channels: list[int], num_sequences: int) -> dict[int, numpy.ndarray]:
     """

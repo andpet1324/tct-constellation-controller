@@ -16,7 +16,7 @@ from constellation.core.controller import SatelliteCommLink
 
 from ..alibava.h5_alibava import AlibavaRun
 from ..lecroy.h5_lecroy import LeCroyRun
-from ..data.run import Run
+from ..run import Run
 from ..controller import TCTController, daq_type
 
 def format_value(value: float) -> str:

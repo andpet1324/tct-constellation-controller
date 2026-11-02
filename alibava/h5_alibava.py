@@ -13,7 +13,7 @@ import pandas
 from collections.abc import Iterator
 from typing import Any
 
-from ..data.run import Run
+from ..run import Run
 
 CHANNELS = 128
 TDC_UNIT_NS = 100.0

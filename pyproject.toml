@@ -23,9 +23,8 @@ dependencies = [
 tct-monitor = "tct.monitor:main"
 tct-controller = "tct.menu:main"
 
-# The repo root is the package, so the relative imports resolve
 [tool.setuptools]
-packages = ["tct", "tct.alibava", "tct.data", "tct.lecroy", "tct.scans"]
+packages = ["tct", "tct.alibava", "tct.lecroy", "tct.scans"]
 
 [tool.setuptools.package-dir]
 tct = "."
