@@ -76,6 +76,8 @@ Parameters that can be set in the menus SETTINGS submenu.
 
 Nothing specific yet...
 
+The LeCroy specific monitor scan does not work in the current state...
+
 ## Metrics
 
 Controller specific metrics the monitors subscribe to.
@@ -105,10 +107,18 @@ Saves the raw waveform data from the oscilloscope.
 
 ## Usage
 
+Start the Standa, Keithley and H5DataWriter satellites. Start either the Alibava or LeCroy satellite depending on your setup.
+
 ```sh
-tct-menu --help
+tct-controller --help
 tct-monitor --help
 ```
+
+The controller requires a config file which sets the parameters of the satellites. See `./config` for example config files.
+
+The menu will load to ROOT. From here you can enter submenus, check the current path `PWD` and exit `EXIT`.
+
+*TODO:* When exiting, add a choice of keeping the satellites in `ORBIT`.
 
 ## License
 
