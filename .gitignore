@@ -1,0 +1,22 @@
+
+# Build directory
+/build
+
+# Text files
+*.txt
+
+tct_constellation.egg-info/
+
+# Output files
+*.json
+
+# Images
+*.png
+*.pdf
+*.jpg
+
+# Cache files
+*.parquet
+
+# Pycache
+*__pycache__

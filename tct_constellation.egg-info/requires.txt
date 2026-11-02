@@ -1,5 +1,0 @@
-ConstellationDAQ[cli,hdf5]
-numpy
-h5py
-scipy
-matplotlib
