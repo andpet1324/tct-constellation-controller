@@ -42,9 +42,9 @@ def motor_scan(
 
     points = [
         {"x": float(x), "y": float(y), "z": float(z)}
-        for x in numpy.arange(*xrange)
-        for y in numpy.arange(*yrange)
         for z in numpy.arange(*zrange)
+        for y in numpy.arange(*yrange)
+        for x in numpy.arange(*xrange)
     ]
     if not points:
         raise ValueError("Scan ranges contain no points")

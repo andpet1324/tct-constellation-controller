@@ -46,6 +46,13 @@ def clear_h5(path: pathlib.Path) -> None:
         os.remove(path)
 
 
+def clear_all_h5(path: pathlib.Path, run_ids: list[str]) -> None:
+    for run_id in run_ids:
+        h5_path = path / f"data_{run_id}.h5"
+        if os.path.exists(h5_path):
+            os.remove(h5_path)
+
+
 def data_directory(config_path: pathlib.Path, writer: SatelliteCommLink) -> pathlib.Path:
     """The output_directory the H5DataWriter"""
     writer_name = str(writer)
