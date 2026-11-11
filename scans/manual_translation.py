@@ -64,7 +64,7 @@ def manual_translation(
 
         if csv_dir is not None:
             try:
-                with open_run(run_id, data_dir, daq, clear=True) as run:
+                with open_run(run_id, data_dir, daq) as run:
                     ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
             except Exception as err:
                 ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
