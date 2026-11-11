@@ -27,8 +27,8 @@ def run_pedestals(
             run_ids.append(run_id)
             count += 1
     except KeyboardInterrupt:
-        for run_id in run_ids:
-            clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
+        # for run_id in run_ids:
+            # clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
         return
 
 def run_adc(

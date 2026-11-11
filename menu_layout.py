@@ -43,7 +43,7 @@ def monitor_menu() -> dict[str, Any]:
     """
         Layout of the monitor menu
     """
-    from .alibava.monitor_alibava import cmd_monitor_pedestals, cmd_monitor_adc
+    from .alibava.alibava_monitor import cmd_monitor_pedestals, cmd_monitor_adc
     from .lecroy.monitor_lecroy import cmd_monitor_waveforms
 
     return {

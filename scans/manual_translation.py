@@ -50,7 +50,7 @@ def manual_translation(
         position = dict(zip(position, values))
 
         ctrl.log.status(f"Moving to position {position}")
-        reconfigure(ctrl, stage, {"position": position})
+        reconfigure(ctrl, stage, {"axes": {axis: {"position": mm} for axis, mm in position.items()}})
 
         run_id = run_identifier("manual_scan")
         try:

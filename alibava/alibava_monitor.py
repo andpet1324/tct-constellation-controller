@@ -9,6 +9,7 @@ Live display of the ADC counts from Alibava per channel.
 import pathlib
 import numpy
 from typing import Any
+import traceback
 
 import matplotlib.pyplot as plt
 
@@ -17,6 +18,45 @@ from ..monitor_base import Monitor
 from ..prompts import readline_int, readline_float, readline_path, readline_bool
 
 DELAY_INTERVAL = 8
+ALLOWANCE = 5
+NOISE_THRESHOLD = 10
+EMPTY_CHANNELS = numpy.array([0, 63, 64, 127, 128, 191, 192, 255])
+
+def _distance_to_empty(channels: numpy.ndarray) -> numpy.ndarray:
+    return numpy.abs(channels[:, None] - EMPTY_CHANNELS[None, :]).min(axis=1)
+
+
+def remove_noisy_channels(
+    adc: numpy.ndarray,
+    channels: numpy.ndarray,
+    allowance: int = ALLOWANCE,
+    threshold: float = NOISE_THRESHOLD,
+) -> tuple[numpy.ndarray, numpy.ndarray]:
+    adc = numpy.atleast_2d(adc)
+    median = numpy.median(adc, axis=0)
+    noisy = (adc > median + threshold).any(axis=0) & (
+        _distance_to_empty(channels) <= allowance
+    )
+    return adc[:, ~noisy], channels[~noisy]
+
+
+def remove_empty_channels(
+    adc: numpy.ndarray, channels: numpy.ndarray
+) -> tuple[numpy.ndarray, numpy.ndarray]:
+    adc = numpy.atleast_2d(adc)
+    keep = ~numpy.isin(channels, EMPTY_CHANNELS)
+    return remove_noisy_channels(adc[:, keep], channels[keep])
+
+
+def common_mode_subtraction(
+    adc: numpy.ndarray, channels: numpy.ndarray, group_size: int = 64
+) -> numpy.ndarray:
+    out = numpy.atleast_2d(adc).astype(float, copy=True)
+    groups = channels // group_size
+    for g in numpy.unique(groups):
+        sel = groups == g
+        out[:, sel] -= numpy.median(out[:, sel], axis=1, keepdims=True)
+    return out
 
 class AlibavaMonitor(Monitor):
     """Live plots of the pedestals, noise and ADC counts of the Alibava"""
@@ -147,19 +187,22 @@ class AlibavaMonitor(Monitor):
                             channels = run.channels
                             for chip in range(run.n_chips):
                                 ch_mask = (ch >= chip * 128) & (ch < (chip + 1) * 128)
-                                chip_ch = ch[ch_mask]
+                                chip_ch = ch[ch_mask].astype(int)
+
                                 pedestals = pedestals_df["pedestals"][ch_mask]
 
-                                adc = run.adc(chip)
-                                times = run.times()
+                                adc_raw = numpy.asarray(run.adc(chip), dtype=float)
+                                times = numpy.asarray(run.times())
 
-                                diff = adc - pedestals
-                                mask = numpy.abs(diff) >= hit_threshold
-                                hits_time = times[numpy.nonzero(mask)[0]]
+                                diff = adc_raw - pedestals
+                                adc, chip_ch = remove_empty_channels(diff, chip_ch)
+                                adc = common_mode_subtraction(adc, chip_ch)
+
+                                hit_mask_all = numpy.abs(adc) >= hit_threshold
+                                hits_time = times[numpy.nonzero(hit_mask_all)[0]]
 
                                 time_mask = numpy.abs(times - delay) < DELAY_INTERVAL
                                 if not time_mask.any():
-                                    count += 1
                                     continue
 
                                 if ch_min is not None and ch_max is not None:
@@ -167,7 +210,6 @@ class AlibavaMonitor(Monitor):
                                     if not ch_range.any():
                                         continue
                                     chip_ch = chip_ch[ch_range]
-                                    pedestals = pedestals[ch_range]
                                     adc = adc[:, ch_range]
                                     ax.set_xlim(ch_min, ch_max)
                                     ax_hits.set_xlim(ch_min, ch_max)
@@ -176,9 +218,7 @@ class AlibavaMonitor(Monitor):
                                     ax_hits.set_xlim(0, run.n_chips * len(channels))
 
                                 adc_tcut = adc[time_mask]
-                                
-                                diff = adc_tcut - pedestals
-                                mask = numpy.abs(diff) > hit_threshold
+                                mask = numpy.abs(adc_tcut) > hit_threshold
                                 hits = numpy.count_nonzero(mask, axis=0)
 
                                 if chip not in lines:
@@ -230,6 +270,8 @@ class AlibavaMonitor(Monitor):
                             fig_time.canvas.draw_idle()
                 plt.pause(interval)
                 count += 1
+        except Exception:
+            self.log.error(traceback.format_exc())
         except KeyboardInterrupt:
             return
 

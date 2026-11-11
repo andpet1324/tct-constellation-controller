@@ -53,12 +53,12 @@ def motor_scan(
         # Set HV
         if voltage is not None:
             ctrl.log.status(f"Voltage {v_index}/{len(vrange)}: {voltage}V")
-            reconfigure(ctrl, hv, {"voltage": voltage}, timeout=120)
+            reconfigure(ctrl, hv, {"voltage": float(voltage)}, timeout=120)
 
         for index, position in enumerate(points, start=1):
             # Change position
             ctrl.log.status(f"Point {index}/{len(points)}: {position}")
-            reconfigure(ctrl, stage, {"position": position})
+            reconfigure(ctrl, stage, {"axes": {axis: {"position": mm} for axis, mm in position.items()}})
 
             try:
                 run_id = run_identifier("motor_scan")
@@ -74,12 +74,12 @@ def motor_scan(
             except KeyboardInterrupt:
                 if voltages is not None:
                     ctrl.log.status(f"Setting voltage to {voltages[0]}V")
-                    reconfigure(ctrl, hv, {"voltage": voltages[0]}, timeout=120)
+                    reconfigure(ctrl, hv, {"voltage": float(voltages[0])}, timeout=120)
                 clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
                 return
     if voltages is not None:
         ctrl.log.status(f"Setting voltage to {voltages[0]}V")
-        reconfigure(ctrl, hv, {"voltage": voltages[0]}, timeout=120)
+        reconfigure(ctrl, hv, {"voltage": float(voltages[0])}, timeout=120)
     return
 
 
