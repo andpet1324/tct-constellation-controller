@@ -46,6 +46,13 @@ def clear_h5(path: pathlib.Path) -> None:
         os.remove(path)
 
 
+def clear_all_h5(path: pathlib.Path, run_ids: list[str]) -> None:
+    for run_id in run_ids:
+        h5_path = path / f"data_{run_id}.h5"
+        if os.path.exists(h5_path):
+            os.remove(h5_path)
+
+
 def data_directory(config_path: pathlib.Path, writer: SatelliteCommLink) -> pathlib.Path:
     """The output_directory the H5DataWriter"""
     writer_name = str(writer)
@@ -73,8 +80,8 @@ def read_hv(ctrl: TCTController, hv: SatelliteCommLink) -> dict[str, float]:
 def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, float]:
     """Position of the stage, raising if it cannot be read"""
     position = {}
-    for axis, read in (("x", stage.position_x), ("y", stage.position_y), ("z", stage.position_z)):
-        response = read()
+    for axis in ("x", "y", "z"):
+        response = stage.get_position([axis])  # CSCP payload arguments are passed as a list
         if not response.success:
             raise RuntimeError(f"Reading stage position {axis} failed: {response.errmsg}")
         try:

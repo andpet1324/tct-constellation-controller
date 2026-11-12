@@ -5,19 +5,23 @@
 _autonomy.role = "DYNAMIC"
 
 # --- Stage ---------------------------------------------------------------------
-[Standa.Stage]
-model = "8MT30_50"
+[Standa._default]
 calibrate_on_launch = false
 
-[Standa.Stage.axis_serials]
-x = 31015
-y = 31016
-z = 30954
+[Standa._default.axes.x]
+serial = 31015
+model = "8MT30_50"
+position = 8.5
 
-[Standa.Stage.position]
-x = 0.0
-y = 0.0
-z = 0.0
+[Standa._default.axes.y]
+serial = 31016
+model = "8MT30_50"
+position = 11.1522119140625
+
+[Standa._default.axes.z]
+serial = 30954
+model = "8MT30_50"
+position = 33.8999951171875
 
 # --- Bias voltage ----------------------------------------------------------------
 [Keithley.HV]

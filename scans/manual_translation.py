@@ -12,7 +12,7 @@ from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController, daq_type
 from ..prompts import readline_int, readline_dir
-from .common import read_hv, reconfigure, run_identifier, data_directory, get_position, open_run, clear_h5
+from .common import read_hv, reconfigure, run_identifier, data_directory, get_position, open_run, clear_h5, clear_all_h5
 
 
 def manual_translation(
@@ -31,6 +31,7 @@ def manual_translation(
 
     position = get_position(ctrl, stage)
     ctrl.log.status(f"Stages currently at {position}")
+    run_ids = []
 
     # Wait for user input and then move the stages
     while True:
@@ -50,21 +51,22 @@ def manual_translation(
         position = dict(zip(position, values))
 
         ctrl.log.status(f"Moving to position {position}")
-        reconfigure(ctrl, stage, {"position": position})
+        reconfigure(ctrl, stage, {"axes": {axis: {"position": mm} for axis, mm in position.items()}})
 
         run_id = run_identifier("manual_scan")
         try:
             collected = ctrl.take_run(run_id, triggers)
+            run_ids.append(run_id)
         except KeyboardInterrupt:
             if data_dir is not None:
-                clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
+                clear_all_h5(pathlib.Path(data_dir), run_ids)
             break
 
         point = {"run_id": run_id, "position": position, "triggers": collected, **read_hv(ctrl, hv)}
 
         if csv_dir is not None:
             try:
-                with open_run(run_id, data_dir, daq, clear=True) as run:
+                with open_run(run_id, data_dir, daq) as run:
                     ctrl.log.status(f"Waveforms written to {run.to_csv(csv_dir, point)}")
             except Exception as err:
                 ctrl.log.warning(f"Could not write {run_id} to csv: {err}")
