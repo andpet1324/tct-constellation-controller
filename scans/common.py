@@ -80,8 +80,8 @@ def read_hv(ctrl: TCTController, hv: SatelliteCommLink) -> dict[str, float]:
 def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, float]:
     """Position of the stage, raising if it cannot be read"""
     position = {}
-    for axis, read in (("x", stage.position_x), ("y", stage.position_y), ("z", stage.position_z)):
-        response = read()
+    for axis in ("x", "y", "z"):
+        response = stage.get_position(axis)
         if not response.success:
             raise RuntimeError(f"Reading stage position {axis} failed: {response.errmsg}")
         try:
