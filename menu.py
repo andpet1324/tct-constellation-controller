@@ -133,7 +133,10 @@ def main(args: list[str] | None = None):
     root = Menu("Menu")
     root.load_subs(controller_menu())
     tgt = {"ctrl": ctrl, "cfg": opts.config, "hv": hv, "writer": writer, "stage": stage, "daq": daq}
-    root.steer(tgt)
+    try:
+        root.steer(tgt)
+    finally:
+        ctrl.land_all()
 
 if __name__ == "__main__":
     main()

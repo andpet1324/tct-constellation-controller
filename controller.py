@@ -110,12 +110,10 @@ class TCTController(ScriptableController, MonitoringListener):
         self.log.status(f"Run {run_identifier} finished with {collected} triggers")
         return collected
 
-    def reentry(self) -> None:
+    def land_all(self) -> None:
         # land satellites
         self.constellation.land()
         self.await_state(SatelliteState.INIT, timeout = 360)
-        
-        super().reentry()
 
     @schedule_metric("", 1, [SatelliteState.ORBIT])
     def RUN_IDENTIFIER(self) -> str | None:
