@@ -81,7 +81,7 @@ def get_position(ctrl: TCTController, stage: SatelliteCommLink) -> dict[str, flo
     """Position of the stage, raising if it cannot be read"""
     position = {}
     for axis in ("x", "y", "z"):
-        response = stage.get_position(axis)
+        response = stage.get_position([axis])  # CSCP payload arguments are passed as a list
         if not response.success:
             raise RuntimeError(f"Reading stage position {axis} failed: {response.errmsg}")
         try:
