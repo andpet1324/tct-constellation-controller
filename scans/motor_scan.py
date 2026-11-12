@@ -40,6 +40,7 @@ def motor_scan(
         ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
         reconfigure(ctrl, daq, {"run_type": "RADSOURCE"})
 
+    # z is the outermost loop in this configuration, and x the innermost
     points = [
         {"x": float(x), "y": float(y), "z": float(z)}
         for z in numpy.arange(*zrange)
