@@ -50,3 +50,9 @@ ip_address = "169.254.40.151"
 port = 1861
 timeout = 5.0
 nsequence = 1
+
+# --- LASER -------------------------------------------------------------------------
+
+[ParticularsLaserController.Laser]
+frequency = 100.0 # Hz (50.0 - 100e3)
+dac = 516 # DAC (0 - 1023)

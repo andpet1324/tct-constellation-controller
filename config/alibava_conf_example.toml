@@ -73,3 +73,9 @@ latency = 127
 
 [Alibava.DAQ.beetle_1]
 latency = 127
+
+# --- LASER -------------------------------------------------------------------------
+
+[ParticularsLaserController.Laser]
+frequency = 100.0 # Hz (50.0 - 100e3)
+dac = 516 # DAC (0 - 1023)

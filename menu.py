@@ -112,7 +112,7 @@ def main(args: list[str] | None = None):
     opts = parser.parse_args(args)
 
     ctrl = TCTController(opts.group)
-    satellite_ids = [None, None, None, None]
+    satellite_ids = [None, None, None, None, None]
     while any(name is None for name in satellite_ids):
         time.sleep(1) # Wait for satellites to connect
         satellites = ctrl.constellation.satellites
@@ -123,7 +123,8 @@ def main(args: list[str] | None = None):
         hv_id, hv = find_sat(satellites, "Keithley")
         writer_id, writer = find_sat(satellites, "H5DataWriter")
         stage_id, stage = find_sat(satellites, "Standa")
-        satellite_ids = [daq_id, hv_id, writer_id, stage_id]
+        laser_id, laser = find_sat(satellites, "ParticularsLaserController")
+        satellite_ids = [daq_id, hv_id, writer_id, stage_id, laser_id]
 
     # CHECK IF SATELLITES ARE IN ORBIT ALREADY -> ASK FOR RE-INIT
     ctrl.set_daq(daq)
@@ -132,7 +133,7 @@ def main(args: list[str] | None = None):
 
     root = Menu("Menu")
     root.load_subs(controller_menu())
-    tgt = {"ctrl": ctrl, "cfg": opts.config, "hv": hv, "writer": writer, "stage": stage, "daq": daq}
+    tgt = {"ctrl": ctrl, "cfg": opts.config, "hv": hv, "writer": writer, "stage": stage, "daq": daq, "laser": laser}
     try:
         root.steer(tgt)
     finally:
