@@ -85,7 +85,15 @@ class TCTController(ScriptableController, MonitoringListener):
         self.await_state(SatelliteState.ORBIT, timeout = 360) # Can take a long time to bias
 
     def take_run(self, run_identifier: str, triggers: int, timeout: int = 360) -> int:
-        """Take a single run until triggers have been collected."""
+        """
+            Take a single run until triggers have been collected.
+
+            The laser satellite is constructed such that it will always be on when we take a run.
+            Therefore, if you want to take a pedestal run, make sure the laser is positioned away
+            from the sensor.
+
+            Make sure that you have the laser set to internal trigger!
+        """
         timeout = timeout + 0.01 * triggers # Add some time if we have a lot of triggers
         self.reset_triggers()
 
