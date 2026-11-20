@@ -4,8 +4,8 @@ import pathlib
 from constellation.core.controller import SatelliteCommLink
 
 from ..controller import TCTController
-from ..scans.common import reconfigure, run_identifier, data_directory, clear_h5
-from ..prompts import readline_int
+from ..scans.common import reconfigure, run_identifier, data_directory, clear_h5, get_position
+from ..prompts import readline_int, readline_bool
 
 
 def run_pedestals(
@@ -34,8 +34,10 @@ def run_pedestals(
 def run_adc(
     ctrl: TCTController,
     daq: SatelliteCommLink,
+    stage: SatelliteCommLink,
     triggers: int,
     data_dir: pathlib.Path,
+    report_pos: bool,
 ) -> None:
     """Take data in RADSOURCE mode for an amount of triggers"""
     ctrl.log.status(f"Setting Alibava to RADSOURCE mode")
@@ -49,6 +51,10 @@ def run_adc(
             ctrl.take_run(run_id, triggers)
             run_ids.append(run_id)
             count += 1
+            if report_pos:
+                pos = get_position(ctrl, stage)
+                ctrl.log.status(f"Stages currently at {pos}")
+
     except KeyboardInterrupt:
         for run_id in run_ids:
             clear_h5(pathlib.Path(data_dir) / f"data_{run_id}.h5")
@@ -70,8 +76,9 @@ def cmd_run_adc(tgt: dict[str, Any]) -> None:
     """Continously takes data for use with monitor of adc"""
     triggers = readline_int("Triggers", 100)
     data_dir = data_directory(tgt["cfg"], tgt["writer"])
+    report_pos = readline_bool("Report position?", False)
     try:
-        run_adc(tgt["ctrl"], tgt["daq"], triggers, data_dir)
+        run_adc(tgt["ctrl"], tgt["daq"], tgt["stage"], triggers, data_dir, report_pos)
     except Exception as err:
         print(f"Monitor pedestals interrupted with error: {err}")
     finally:
